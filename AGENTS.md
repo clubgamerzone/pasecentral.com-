@@ -752,3 +752,4 @@ La guía original se conserva en AGENTS.md.txt como referencia histórica. Este 
 Después de cada cambio documentar dónde quedó la función, cómo accederla, librerías o servicios usados, pasos de ejecución/prueba, resultados, límites y commit. No guardar secretos, QR, enlaces de entrega ni datos personales.
 
 El software funciona con PostgreSQL embebido persistente en desarrollo. La demo está prohibida en producción. El lanzamiento comercial requiere credenciales, pruebas Supabase/Wompi/email, impresora/EDA51 y ensayo; no marcar esos pendientes como verificados por una prueba local.
+- Configuración de cuentas y datos necesarios para demo conectada: docs/SERVICE_SETUP.md (2026-10-12).

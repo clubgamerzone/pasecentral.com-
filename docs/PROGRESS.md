@@ -66,3 +66,7 @@ GitHub Actions completó correctamente [Verify MVP, ejecución 38206422699](http
 El push usó la cuenta existente con `git -c credential.username=clubgamerzone -c credential.interactive=false push -u origin main`; los parámetros son locales a ese comando y no guardan secretos en el repo. Verificación posterior: `git ls-remote origin refs/heads/main`.
 
 Demo comprobada en `http://127.0.0.1:3000/login` con respuesta 200; base de trabajo inicial con dos eventos ficticios y cero órdenes. El servidor fue iniciado mediante `npm run dev`. No se desplegó el dominio comercial.
+
+## Preparación de servicios · 2026-10-12
+
+Se agregó docs/SERVICE_SETUP.md con cuentas, variables, pasos Supabase/Wompi sandbox/Resend/hosting y datos que debe confirmar el usuario. Se consultaron fuentes oficiales vigentes. Supabase acepta clave pública publishable en la variable existente NEXT_PUBLIC_SUPABASE_ANON_KEY. Se distinguió SMTP de Auth frente a emails de boletas y la necesidad de URL pública para webhooks. No se crearon cuentas ni se configuraron credenciales: .env.local aún no existe. Cambios exclusivamente documentales; las pruebas de código anteriores siguen siendo la referencia.
