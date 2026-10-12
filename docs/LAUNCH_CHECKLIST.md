@@ -38,7 +38,7 @@ El código local y las pruebas automatizadas no sustituyen este ensayo. Estado i
 
 ## Software y publicación
 
-- [ ] CI remoto en GitHub comprobado para el commit publicado.
+- [x] CI remoto en GitHub comprobado para el código publicado `adb8c9bde8aff64428791b6f59d267132da79072` (ejecución 38206422699).
 - [ ] Revisar los avisos de dependencias de desarrollo de la cadena de ESLint antes del lanzamiento.
 - [ ] Prueba multiconexión/carga en base de datos objetivo y revisión de límites/tamaño de exportaciones.
 - [ ] Revisión de entorno: ninguna clave, outbox, datos privados o demo en producción.

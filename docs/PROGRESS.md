@@ -42,7 +42,7 @@ Preparación de migraciones con `exec` de PGlite para SQL de varias sentencias; 
 - No se conectó impresora ni Honeywell EDA51. No se certificó ESC/POS, QZ Tray, QR en papel, scanner/Android/navegador ni latencia menor de dos segundos.
 - No se configuraron dominio/hosting, scheduler externo, DNS ni backups de proveedor; no se publicó un sitio comercial.
 - Fecha y aforo del primer evento, marca, políticas, definición fiscal, contacto y conectividad siguen pendientes. Datos demo no sustituyen esos datos.
-- CI remoto debe comprobarse después del push; el workflow está incluido, pero las pruebas locales no prueban su ejecución remota.
+- CI remoto comprobado con éxito para el commit publicado `adb8c9bde8aff64428791b6f59d267132da79072`: lint, tipos, 36 pruebas, build y los 5 flujos Chromium en Ubuntu. Ver registro de publicación al final.
 
 El **MVP de software local es ejecutable**. El lanzamiento para operar un evento real está condicionado a `LAUNCH_CHECKLIST.md`. No hubo cobros reales ni mensajes a clientes.
 
@@ -57,3 +57,12 @@ Repositorio autorizado: https://github.com/clubgamerzone/pasecentral.com-.git, r
 La actualización de este registro queda en un commit de documentación posterior. Para identificar la revisión final publicada: `git rev-parse HEAD` y `git ls-remote origin refs/heads/main` deben coincidir.
 
 La última compilación también verificó que los manifiestos de trazado de Next no incluyeran `.local/server-key`, `.local/` ni `.env.local`. El acceso dinámico a la carpeta demo quedó limitado a subdirectorios de `.local`, y `next.config.ts` excluye explícitamente datos/secretos locales de los artefactos de servidor.
+
+## Publicación y CI verificados (2026-10-12)
+
+Código publicado y HEAD remoto/local confirmados: `adb8c9bde8aff64428791b6f59d267132da79072`.
+GitHub Actions completó correctamente [Verify MVP, ejecución 38206422699](https://github.com/clubgamerzone/pasecentral.com-/actions/runs/38206422699). La revisión posterior solo actualiza documentación.
+
+El push usó la cuenta existente con `git -c credential.username=clubgamerzone -c credential.interactive=false push -u origin main`; los parámetros son locales a ese comando y no guardan secretos en el repo. Verificación posterior: `git ls-remote origin refs/heads/main`.
+
+Demo comprobada en `http://127.0.0.1:3000/login` con respuesta 200; base de trabajo inicial con dos eventos ficticios y cero órdenes. El servidor fue iniciado mediante `npm run dev`. No se desplegó el dominio comercial.
