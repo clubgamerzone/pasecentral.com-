@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { InviteTeam } from "./account";
 import {
   Plus,
   Download,
@@ -485,6 +486,7 @@ export function UserManagement({ eventId }: { eventId?: string }) {
           subtitle="Los permisos de taquilla y acceso se asignan a cada evento."
         />
       )}
+      <InviteTeam eventId={eventId} />
       <section className="panel">
         <h2>Asignar personal</h2>
         <p className="compact" style={{ margin: "12px 0 23px" }}>
@@ -531,6 +533,7 @@ export function UserManagement({ eventId }: { eventId?: string }) {
               <select name="role" id="role">
                 <option value="box_office">Taquilla</option>
                 <option value="access_staff">Acceso</option>
+                <option value="organizer">Organizador del evento</option>
               </select>
             </Field>
           </div>
@@ -557,7 +560,13 @@ export function UserManagement({ eventId }: { eventId?: string }) {
                 .map((s) => (
                   <tr key={`${s.user_id}-${s.role}`}>
                     <td>{data.people.find((p) => p.id === s.user_id)?.name}</td>
-                    <td>{s.role === "box_office" ? "Taquilla" : "Acceso"}</td>
+                    <td>
+                      {s.role === "organizer"
+                        ? "Organizador"
+                        : s.role === "box_office"
+                          ? "Taquilla"
+                          : "Acceso"}
+                    </td>
                     <td>{s.active ? "Activo" : "Desactivado"}</td>
                     <td>
                       <button

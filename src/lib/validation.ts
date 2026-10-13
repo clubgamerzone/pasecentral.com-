@@ -14,6 +14,31 @@ const items = z
   .max(10);
 export const commands = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("profile_update"),
+    name: z.string().trim().min(1).max(150),
+    phone: z.string().trim().max(30).default(""),
+    bio: z.string().trim().max(1000).default(""),
+  }),
+  z.object({
+    action: z.literal("invite_create"),
+    email: z.email().max(254),
+    name: z.string().trim().min(1).max(150),
+    role: z.enum([
+      "platform_admin",
+      "organizer",
+      "box_office",
+      "access_staff",
+      "customer",
+    ]),
+    event_ids: z.array(id).max(100).default([]),
+  }),
+  z.object({ action: z.literal("invite_resend"), invitation_id: id }),
+  z.object({ action: z.literal("invite_revoke"), invitation_id: id }),
+  z.object({
+    action: z.literal("invite_accept"),
+    token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+  }),
+  z.object({
     action: z.literal("create_event"),
     organization_id: id,
     title: text,
@@ -67,7 +92,7 @@ export const commands = z.discriminatedUnion("action", [
     action: z.literal("staff"),
     event_id: id,
     user_id: id,
-    role: z.enum(["box_office", "access_staff"]),
+    role: z.enum(["box_office", "access_staff", "organizer"]),
     active: z.boolean(),
   }),
   z.object({

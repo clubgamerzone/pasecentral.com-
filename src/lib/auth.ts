@@ -32,9 +32,18 @@ export async function currentActor(): Promise<Actor | null> {
     )
       return null;
     const u = USERS.find((u) => u.id === id);
-    return u
-      ? { id: u.id, name: u.name, email: `${u.role}@example.test` }
-      : null;
+    if (!u) return null;
+    const p = await one(
+      await database(),
+      "SELECT name FROM profiles WHERE id=$1",
+      [u.id],
+    );
+    return {
+      id: u.id,
+      name: p.name,
+      email: `${u.role}@example.test`,
+      email_verified: true,
+    };
   }
   const s = await supabase();
   const {
@@ -48,7 +57,12 @@ export async function currentActor(): Promise<Actor | null> {
     [user.id, user.user_metadata?.name ?? "Comprador", user.email ?? null],
   );
   const p = await one(db, "SELECT name FROM profiles WHERE id=$1", [user.id]);
-  return { id: user.id, name: p.name, email: user.email };
+  return {
+    id: user.id,
+    name: p.name,
+    email: user.email,
+    email_verified: Boolean(user.email_confirmed_at),
+  };
 }
 export async function requireActor() {
   return (await currentActor()) ?? fail("Inicia sesión para continuar", 401);

@@ -137,3 +137,6 @@ Playwright inicia su servidor en `127.0.0.1:3100` y usa una base demo aislada po
 ## Pendientes antes de abrir ventas reales
 
 Lee [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md): credenciales y pruebas de Supabase/Wompi/email, autenticación verificada, privacidad y condiciones definitivas, definición fiscal, fecha/aforo, red del recinto, impresora, EDA51, pruebas concurrentes multiconexión y recuperación. No interpretar las pruebas locales como aprobación de estos requisitos.
+### Perfil e invitaciones
+
+En **Mi perfil** (`/account/profile`) se editan nombre, teléfono, biografía y foto privada (JPG/PNG/WebP, hasta 2 MB). Administrador global invita cuentas desde **Equipo y usuarios**, con rol y varios eventos. El destinatario debe confirmar su propio correo y aceptar; no compartir contraseñas. Configuración, migración 004, bucket avatars y cola Resend: [docs/PROFILE_TEAM_SETUP.md](docs/PROFILE_TEAM_SETUP.md).

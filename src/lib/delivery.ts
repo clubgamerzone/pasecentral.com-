@@ -101,5 +101,6 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
       );
     }
   }
-  return { processed };
+  const { deliverInvitations } = await import("./invitations");
+  return { processed, invitations: await deliverInvitations(db) };
 }

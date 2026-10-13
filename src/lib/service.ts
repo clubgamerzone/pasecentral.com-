@@ -3,7 +3,12 @@ import type { DB, Tx, Row } from "./db";
 import { hash, token, encrypt, decrypt } from "./crypto";
 import { demoMode } from "./config";
 import { commands, type Command } from "./validation";
-export type Actor = { id: string; name: string; email?: string };
+export type Actor = {
+  id: string;
+  name: string;
+  email?: string;
+  email_verified?: boolean;
+};
 export class AppError extends Error {
   constructor(
     message: string,
@@ -49,13 +54,14 @@ export async function can(
     ).rows.length
   )
     return true;
-  if (permission === "manage") return false;
   const roles =
-    permission === "sell"
-      ? ["box_office"]
-      : permission === "access"
-        ? ["access_staff"]
-        : ["box_office", "access_staff"];
+    permission === "manage"
+      ? ["organizer"]
+      : permission === "sell"
+        ? ["box_office", "organizer"]
+        : permission === "access"
+          ? ["access_staff", "organizer"]
+          : ["box_office", "access_staff", "organizer"];
   return (
     (
       await tx.query(
@@ -486,6 +492,21 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
   const c = commands.parse(input);
   return db.transaction(async (tx) => {
     switch (c.action) {
+      case "profile_update": {
+        await tx.query(
+          "UPDATE profiles SET name=$2,phone=$3,bio=$4,updated_at=now() WHERE id=$1",
+          [a.id, c.name, c.phone || null, c.bio],
+        );
+        await audit(tx, a, "profile_updated", "profile", a.id);
+        return {};
+      }
+      case "invite_create":
+      case "invite_resend":
+      case "invite_revoke":
+      case "invite_accept": {
+        const { invitationCommand } = await import("./invitations");
+        return invitationCommand(tx, a, c);
+      }
       case "create_event": {
         if (
           !(await admin(tx, a)) &&

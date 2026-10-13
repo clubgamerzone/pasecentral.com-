@@ -44,6 +44,7 @@ import {
 } from "./operations";
 import { EventPurchase, Tickets, Checkout } from "./buyer";
 import { Recovery } from "./recovery";
+import { MyProfile, AcceptInvitation } from "./account";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -292,7 +293,10 @@ export function App() {
   const menu = [
     { href: "/events", label: "Explorar eventos", icon: CalendarDays },
     ...(data.actor
-      ? [{ href: "/account/tickets", label: "Mis entradas", icon: Ticket }]
+      ? [
+          { href: "/account/profile", label: "Mi perfil", icon: Users },
+          { href: "/account/tickets", label: "Mis entradas", icon: Ticket },
+        ]
       : []),
   ];
   const operational = [
@@ -342,6 +346,8 @@ export function App() {
         </a>
       </div>
     );
+  else if (path === "/invite") screen = <AcceptInvitation />;
+  else if (path === "/account/profile") screen = <MyProfile />;
   else if (path === "/account" || path === "/account/tickets")
     screen = <Orders customer />;
   else if (path.startsWith("/account/orders/"))
@@ -431,9 +437,18 @@ export function App() {
             {data.actor ? (
               <>
                 <div className="user">
-                  <div className="avatar">
-                    {data.actor.name.slice(0, 2).toUpperCase()}
-                  </div>
+                  {data.profile?.avatar_url ? (
+                    <img
+                      className="avatar"
+                      src={data.profile.avatar_url}
+                      alt="Tu foto de perfil"
+                      style={{ objectFit: "cover" }}
+                    />
+                  ) : (
+                    <div className="avatar">
+                      {data.actor.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     {data.actor.name}
                     <small>
@@ -530,6 +545,7 @@ function Login() {
       if (!res.ok) throw new Error(b.error);
       await refresh();
       if (body.action === "signup") notify(b.message);
+      else if (sessionStorage.getItem("pc-invitation")) navigate("/invite");
       else
         navigate(
           body.action === "demo" && [USERS[0].id, USERS[1].id].includes(body.id)

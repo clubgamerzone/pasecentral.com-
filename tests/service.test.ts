@@ -12,7 +12,9 @@ import { memoryDb, type DB } from "../src/lib/db";
 import { seed, USERS } from "../src/lib/seed";
 import { execute, one, ticketDocument, settle } from "../src/lib/service";
 import { state } from "../src/lib/state";
-import { hash } from "../src/lib/crypto";
+import { hash, decrypt } from "../src/lib/crypto";
+import { normalizeAvatar } from "../src/lib/avatar";
+import sharp from "sharp";
 import { csv } from "../src/lib/csv";
 import { verifyWebhook } from "../src/lib/wompi";
 import { deliver } from "../src/lib/delivery";
@@ -94,6 +96,180 @@ async function scan(
   });
 }
 describe("Inventario, precios y emisión transaccional", () => {
+  it("perfil cambia solo su propietario y no concede permisos", async () => {
+    await execute(db, customer, {
+      action: "profile_update",
+      name: "Nombre de prueba",
+      phone: "3000000000",
+      bio: "Mi perfil",
+      id: admin.id,
+      role: "platform_admin",
+    });
+    expect(
+      (await one(db, "SELECT name FROM profiles WHERE id=$1", [customer.id]))
+        .name,
+    ).toBe("Nombre de prueba");
+    expect(
+      (await one(db, "SELECT name FROM profiles WHERE id=$1", [admin.id])).name,
+    ).toBe(admin.name);
+    expect((await state(db, customer)).permissions.admin).toBe(false);
+    expect((await state(db, customer)).profile?.bio).toBe("Mi perfil");
+  });
+  it("avatar normaliza imagen y rechaza SVG o archivos falsos", async () => {
+    const source = await sharp({
+      create: { width: 32, height: 48, channels: 3, background: "#123456" },
+    })
+      .jpeg()
+      .toBuffer();
+    const metadata = await sharp(await normalizeAvatar(source)).metadata();
+    expect(metadata).toMatchObject({ width: 256, height: 256, format: "png" });
+    await expect(normalizeAvatar(Buffer.from("<svg></svg>"))).rejects.toThrow(
+      "válida",
+    );
+    await expect(
+      normalizeAvatar(Buffer.alloc(2 * 1024 * 1024 + 1)),
+    ).rejects.toThrow("2 MB");
+  });
+  it("invitar exige admin y correo verificado; rol y eventos vienen de invitación", async () => {
+    const command = {
+      action: "invite_create",
+      name: "Invitado de prueba",
+      email: "customer@example.test",
+      role: "organizer",
+      event_ids: [e1],
+    };
+    await expect(execute(db, box, command)).rejects.toThrow(
+      "administrador global",
+    );
+    const r = await execute(db, admin, command);
+    const row = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+      r.invitation_id,
+    ]);
+    const credential = decrypt(row.token_encrypted);
+    await expect(
+      execute(
+        db,
+        { ...customer, email: "otra@example.test", email_verified: true },
+        { action: "invite_accept", token: credential },
+      ),
+    ).rejects.toThrow("correo invitado");
+    await expect(
+      execute(
+        db,
+        { ...customer, email: "customer@example.test", email_verified: false },
+        { action: "invite_accept", token: credential },
+      ),
+    ).rejects.toThrow("verificada");
+    await execute(
+      db,
+      { ...customer, email: "customer@example.test", email_verified: true },
+      {
+        action: "invite_accept",
+        token: credential,
+        role: "platform_admin",
+        event_ids: [e2],
+      },
+    );
+    const result = await state(db, customer);
+    expect(result.permissions.manage).toEqual([e1]);
+    expect(result.permissions.admin).toBe(false);
+    expect(result.permissions.access).toEqual([e1]);
+    expect(
+      await execute(
+        db,
+        { ...customer, email: "customer@example.test", email_verified: true },
+        { action: "invite_accept", token: credential },
+      ),
+    ).toMatchObject({ accepted: true });
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM event_staff WHERE user_id=$1",
+          [customer.id],
+        )
+      ).n,
+    ).toBe(1);
+    expect(JSON.stringify(await state(db, admin))).not.toContain(
+      "token_encrypted",
+    );
+    await db.transaction(async (tx) => {
+      await tx.query("SET LOCAL ROLE authenticated");
+      await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [
+        customer.id,
+      ]);
+      expect(
+        (await tx.query("SELECT id FROM team_invitations")).rows,
+      ).toHaveLength(0);
+    });
+  });
+  it("invitación revocada, vencida o de admin retirado no asigna roles", async () => {
+    for (const kind of ["revoked", "expired", "creator_removed"]) {
+      await db.query(
+        "UPDATE team_invitations SET status='revoked' WHERE status='pending'",
+      );
+      const r = await execute(db, admin, {
+        action: "invite_create",
+        name: "Acceso invitado",
+        email: "customer@example.test",
+        role: "access_staff",
+        event_ids: [e1, e2],
+      });
+      const i = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+        r.invitation_id,
+      ]);
+      if (kind === "revoked")
+        await execute(db, admin, {
+          action: "invite_revoke",
+          invitation_id: i.id,
+        });
+      if (kind === "expired")
+        await db.query(
+          "UPDATE team_invitations SET expires_at=now()-interval '1 minute' WHERE id=$1",
+          [i.id],
+        );
+      if (kind === "creator_removed")
+        await db.query("DELETE FROM platform_admins WHERE user_id=$1", [
+          admin.id,
+        ]);
+      await expect(
+        execute(
+          db,
+          { ...customer, email: "customer@example.test", email_verified: true },
+          { action: "invite_accept", token: decrypt(i.token_encrypted) },
+        ),
+      ).rejects.toThrow();
+      expect((await state(db, customer)).permissions.access).toEqual([]);
+    }
+  });
+  it("invitación asigna varias fiestas, y cola/email quedan protegidos", async () => {
+    const r = await execute(db, admin, {
+      action: "invite_create",
+      name: "Invitado",
+      email: "customer@example.test",
+      role: "box_office",
+      event_ids: [e1, e2, e1],
+    });
+    await deliver(db);
+    const i = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+      r.invitation_id,
+    ]);
+    expect(i.email_status).toBe("sent");
+    await execute(
+      db,
+      { ...customer, email: "customer@example.test", email_verified: true },
+      { action: "invite_accept", token: decrypt(i.token_encrypted) },
+    );
+    expect((await state(db, customer)).permissions.sell.sort()).toEqual(
+      [e1, e2].sort(),
+    );
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.query("SET LOCAL ROLE authenticated");
+        await tx.query("SELECT token_encrypted FROM team_invitations");
+      }),
+    ).rejects.toThrow(/permission denied/);
+  });
   it("separa cupos y órdenes entre dos eventos", async () => {
     await db.query("UPDATE events SET capacity=1 WHERE id=$1", [e1]);
     await sell();

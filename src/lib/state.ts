@@ -57,6 +57,7 @@ export async function state(db: DB, a: Actor | null) {
       attempts: Row[] = [],
       audit: Row[] = [],
       jobs: Row[] = [],
+      invitations: Row[] = [],
       refunds: Row[] = [],
       people: Row[] = [],
       staff: Row[] = [],
@@ -113,7 +114,10 @@ export async function state(db: DB, a: Actor | null) {
       ).rows;
       if (manageable.length || isAdmin) {
         people = (
-          await tx.query("SELECT id,name,email FROM profiles ORDER BY name")
+          await tx.query(
+            "SELECT id,name,email FROM profiles WHERE $1::boolean OR id=$2 OR EXISTS(SELECT 1 FROM event_staff s WHERE s.user_id=profiles.id AND s.event_id=ANY($3::uuid[])) ORDER BY name",
+            [isAdmin, a.id, manageable],
+          )
         ).rows;
         staff = (
           await tx.query(
@@ -143,10 +147,32 @@ export async function state(db: DB, a: Actor | null) {
           )
         ).rows
       : [];
+    const profile = a
+      ? (
+          await tx.query(
+            "SELECT name,email,phone,bio,avatar_path,updated_at FROM profiles WHERE id=$1",
+            [a.id],
+          )
+        ).rows[0]
+      : null;
+    if (profile) {
+      profile.avatar_url = profile.avatar_path
+        ? `/api/profile/avatar?v=${new Date(profile.updated_at).getTime()}`
+        : null;
+      delete profile.avatar_path;
+    }
+    if (isAdmin)
+      invitations = (
+        await tx.query(
+          "SELECT id,email,name,role,event_ids,status,expires_at,email_status,email_attempts,last_error FROM team_invitations ORDER BY created_at DESC LIMIT 200",
+        )
+      ).rows;
     return {
       demo: demoMode(),
       environment: appEnvironment(),
       actor: a,
+      profile,
+      invitations,
       permissions: {
         admin: isAdmin,
         manage: manageable,

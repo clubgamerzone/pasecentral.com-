@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { USERS } from "../../src/lib/seed";
+import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 test("enlace de recuperación inválido borra credenciales de URL y no concede sesión", async ({
   page,
 }) => {
@@ -265,4 +267,112 @@ test("dashboard y catálogo se adaptan a escritorio y móvil", async ({
     path: "test-results/catalog-mobile.png",
     fullPage: true,
   });
+});
+
+test("perfil con foto privada e invitación a varios eventos", async ({
+  page,
+}) => {
+  await login(page, "Administración demo");
+  await page.goto("/account/profile");
+  await page
+    .getByLabel("Nombre completo", { exact: true })
+    .fill("Administrador del ensayo");
+  await page.getByLabel("Teléfono", { exact: true }).fill("3000000000");
+  await page
+    .getByLabel("Acerca de mí", { exact: true })
+    .fill("Perfil ficticio de prueba");
+  await page
+    .getByRole("button", { name: "Guardar perfil", exact: true })
+    .click();
+  await expect(page.locator(".nav-foot")).toContainText(
+    "Administrador del ensayo",
+  );
+  const image = await sharp({
+    create: { width: 20, height: 20, channels: 3, background: "#1f7664" },
+  })
+    .png()
+    .toBuffer();
+  await page.getByLabel("Cambiar foto", { exact: true }).setInputFiles({
+    name: "avatar.png",
+    mimeType: "image/png",
+    buffer: image,
+  });
+  await expect(
+    page.getByRole("button", { name: "Eliminar foto", exact: true }),
+  ).toBeVisible();
+  const avatar = await page.request.get("/api/profile/avatar");
+  expect(avatar.status()).toBe(200);
+  expect(avatar.headers()["content-type"]).toBe("image/png");
+  await page
+    .getByRole("button", { name: "Eliminar foto", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Eliminar foto", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Nombre completo", { exact: true })
+    .fill("Administración demo");
+  await page
+    .getByRole("button", { name: "Guardar perfil", exact: true })
+    .click();
+  await expect(page.locator(".nav-foot")).toContainText("Administración demo");
+  await page.goto("/admin/users");
+  await page
+    .getByLabel("Nombre de la persona", { exact: true })
+    .fill("Comprador invitado");
+  await page
+    .getByLabel("Correo de la invitación", { exact: true })
+    .fill("customer@example.test");
+  await page
+    .getByLabel("Rol de la invitación", { exact: true })
+    .selectOption("access_staff");
+  const assignments = page
+    .getByRole("group", { name: "Eventos asignados (puedes elegir varios)" })
+    .getByRole("checkbox");
+  await assignments.nth(0).check();
+  await assignments.nth(1).check();
+  await page
+    .getByRole("button", { name: "Enviar invitación", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Reenviar invitación", exact: true }),
+  ).toBeVisible();
+  const state = await (await page.request.get("/api/state")).json();
+  const invite = state.invitations.find(
+    (i: { email: string }) => i.email === "customer@example.test",
+  );
+  expect(invite.event_ids).toHaveLength(2);
+  const outbox = JSON.parse(
+    await readFile(`.local/outbox/invite-${invite.id}-1.json`, "utf8"),
+  );
+  const credential = outbox.text.match(/\/invite#([A-Za-z0-9_-]{43})/)[1];
+  await login(page, "Comprador demo");
+  await page.goto(`/invite#${credential}`);
+  await expect(
+    page.getByRole("button", { name: "Aceptar invitación", exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/invite$/);
+  await page
+    .getByRole("button", { name: "Aceptar invitación", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/account\/profile$/);
+  await expect(
+    page.getByRole("link", { name: "Control de acceso", exact: true }),
+  ).toBeVisible();
+  const denied = await page.request.post("/api/commands", {
+    headers: { origin: "http://127.0.0.1:3100" },
+    data: {
+      action: "invite_create",
+      name: "Persona",
+      email: "other@example.test",
+      role: "platform_admin",
+      event_ids: [],
+    },
+  });
+  expect(denied.status()).toBe(403);
+  await page
+    .getByRole("button", { name: "Cerrar sesión", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/login$/);
+  expect((await page.request.get("/api/profile/avatar")).status()).toBe(401);
 });
