@@ -162,7 +162,7 @@ export function EventEditor({
         ))}
       </nav>
       {page === "settings" ? (
-        <div className="split">
+        <div className="split event-settings">
           <EventDetails event={e} />
           <section className="panel">
             <h2>Estado y publicación</h2>

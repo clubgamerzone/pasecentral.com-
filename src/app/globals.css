@@ -1238,6 +1238,9 @@ textarea {
   object-fit: cover;
   display: block;
 }
+.event-settings {
+  align-items: start;
+}
 .event-image-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
