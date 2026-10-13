@@ -301,6 +301,9 @@ test("perfil con foto privada e invitación a varios eventos", async ({
   })
     .png()
     .toBuffer();
+  await page
+    .getByLabel("Nombre completo", { exact: true })
+    .fill("Nombre pendiente de guardar");
   await page.getByLabel("Cambiar foto", { exact: true }).setInputFiles({
     name: "avatar.png",
     mimeType: "image/png",
@@ -309,6 +312,9 @@ test("perfil con foto privada e invitación a varios eventos", async ({
   await expect(
     page.getByRole("button", { name: "Eliminar foto", exact: true }),
   ).toBeVisible();
+  await expect(page.getByLabel("Nombre completo", { exact: true })).toHaveValue(
+    "Nombre pendiente de guardar",
+  );
   const avatar = await page.request.get("/api/profile/avatar");
   expect(avatar.status()).toBe(200);
   expect(avatar.headers()["content-type"]).toBe("image/png");
@@ -362,6 +368,21 @@ test("perfil con foto privada e invitación a varios eventos", async ({
     page.getByRole("button", { name: "Aceptar invitación", exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/invite$/);
+  await page
+    .getByRole("button", { name: "Usar otra cuenta", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/login$/);
+  await login(page, "Comprador demo");
+  await expect(page).toHaveURL(/\/invite$/);
+  await page.getByRole("button", { name: "Ahora no", exact: true }).click();
+  await expect(page).toHaveURL(/\/events$/);
+  expect(
+    await page.evaluate(() => sessionStorage.getItem("pc-invitation")),
+  ).toBeNull();
+  await page.goto(`/invite#${credential}`);
+  await expect(
+    page.getByRole("button", { name: "Aceptar invitación", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Aceptar invitación", exact: true })
     .click();

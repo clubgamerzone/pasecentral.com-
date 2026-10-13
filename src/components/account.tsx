@@ -94,7 +94,7 @@ export function MyProfile() {
           </div>
         </div>
         <form
-          key={p.updated_at}
+          key={JSON.stringify([p.name, p.phone, p.bio])}
           onSubmit={async (e) => {
             e.preventDefault();
             await run(
