@@ -19,6 +19,14 @@ Para este equipo comenzar con Wedge activado, método Standard/Normal si está d
 
 La conexión al PC no es necesaria para operar: Chrome del EDA51 conecta directamente por HTTPS a la aplicación. Para diagnóstico adicional, el propietario puede consultar **Settings → About phone** (número de compilación) y la versión de Chrome. Si posteriormente desea diagnóstico USB con ADB, deberá habilitar depuración USB y aceptar la autorización RSA en el propio equipo; esto no es requisito para la prueba y todavía no se ha solicitado ni realizado.
 
+### Incidencia de carga en el equipo (2026-10-13)
+
+El propietario informó que Chrome del EDA51 permanece en «Preparando tu espacio». La consulta pública `/api/state` desde el PC respondió HTTP 200, ambiente staging, demo deshabilitada y un evento publicado. Esto no prueba conectividad desde el dispositivo. `adb devices -l` seguía sin mostrar el equipo. En `App` la pantalla precede a la inicialización de JavaScript y carga de `/api/state`; aún no se capturó error del navegador ni se confirmó la causa.
+
+Solicitados versión completa de Chrome y, opcionalmente, autorización de depuración USB en el equipo para diagnóstico. La guía incluida con Next.js 16.4 (`node_modules/next/dist/docs/03-architecture/supported-browsers.md`) indica Chrome 111+; Google identifica Chrome 138 como último compatible con Android 8/9. Android 8.1 por sí solo no impide una versión compatible, pero un Chrome antiguo puede bloquear la inicialización. Comprobar además desde el Honeywell si `/api/state` devuelve JSON o un error de conexión, sin compartir datos de sesión. No se cambiaron dependencias, firmware ni aplicación basándose en esta hipótesis.
+
+Fuentes: [navegadores soportados por Next.js](https://nextjs.org/docs/architecture/supported-browsers) y [Google: Chrome en Android 8/9](https://support.google.com/chrome/thread/352616098/sunsetting-chrome-support-for-android-8-0-oreo-and-android-9-0-pie?hl=en-GB).
+
 La pantalla implementada está en `src/components/operations.tsx`, componente `Access`, ruta `/access`. No requiere aplicación nativa de Pase Central ni modo offline.
 
 1. Conectar el equipo a Wi-Fi o datos y comprobar que abre https://pasecentral-demo.vercel.app/login.
