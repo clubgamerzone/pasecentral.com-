@@ -86,3 +86,5 @@ Corrección `35e210e` desplegada Ready; 5 E2E aprobados. Solicitud de recuperaci
 Se comprobó la opción **Send password recovery** del usuario en Supabase y se añadió soporte a sus enlaces implícitos, además de PKCE. El cliente limpia la credencial del fragmento antes de intercambiarla; el servidor verifica identidad. Dos pruebas unitarias adicionales rechazan tokens inválidos/identidad no verificable; la regresión de navegador comprueba limpieza de URL sin conceder sesión. La guía evita confundir contraseña Auth con contraseña PostgreSQL. Recuperación manual efectiva sigue pendiente.
 
 Validación de esta corrección: lint y tipos sin errores/advertencias, 45 pruebas Vitest, 6 flujos Playwright y build aprobados. No se cambió ninguna contraseña ni se certificó la recuperación manual del propietario.
+
+Bloqueo comunicado posteriormente: Supabase rechazó otro correo de recuperación con `email rate limit exceeded`. Se confirmó en documentación oficial el límite compartido de dos correos por hora del SMTP incorporado. Pendiente esperar la ventana o configurar SMTP propio; no se debilitaron controles de Auth. Detalles en CLOUD_SETUP_2026-10-13.md.
