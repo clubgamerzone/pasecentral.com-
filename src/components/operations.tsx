@@ -587,7 +587,12 @@ export function UserManagement({ eventId }: { eventId?: string }) {
       </section>
       {data.permissions.admin && !eventId && (
         <section className="panel" style={{ marginTop: 23 }}>
-          <h2>Organizadores</h2>
+          <h2>Organizadores de toda la organización</h2>
+          <p className="helper" style={{ marginTop: 12 }}>
+            Esta asignación permite gestionar todos los eventos de la
+            organización. Para limitar el acceso a eventos específicos, utiliza
+            la invitación o el rol operativo de organizador del evento.
+          </p>
           <form
             style={{ marginTop: 20 }}
             onSubmit={(e) => {

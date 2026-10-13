@@ -274,6 +274,15 @@ test("perfil con foto privada e invitación a varios eventos", async ({
 }) => {
   await login(page, "Administración demo");
   await page.goto("/account/profile");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    page.getByRole("heading", { name: "Mi perfil", exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBeTruthy();
   await page
     .getByLabel("Nombre completo", { exact: true })
     .fill("Administrador del ensayo");
@@ -316,6 +325,7 @@ test("perfil con foto privada e invitación a varios eventos", async ({
     .getByRole("button", { name: "Guardar perfil", exact: true })
     .click();
   await expect(page.locator(".nav-foot")).toContainText("Administración demo");
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/admin/users");
   await page
     .getByLabel("Nombre de la persona", { exact: true })

@@ -42,6 +42,7 @@ export function MyProfile() {
         <div
           style={{
             display: "flex",
+            flexWrap: "wrap",
             gap: 20,
             alignItems: "center",
             marginBottom: 24,
@@ -66,7 +67,7 @@ export function MyProfile() {
               {p.name.slice(0, 2).toUpperCase()}
             </div>
           )}
-          <div>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
             <label htmlFor="profile-photo">Cambiar foto</label>
             <input
               id="profile-photo"
@@ -183,7 +184,7 @@ export function MyProfile() {
   );
 }
 export function AcceptInvitation() {
-  const { data, run, busy, navigate } = useApp();
+  const { data, run, busy, navigate, refresh } = useApp();
   const [credential, setCredential] = useState("");
   useEffect(() => {
     const value =
@@ -242,6 +243,38 @@ export function AcceptInvitation() {
             </button>
           </>
         )}
+        <div className="form-actions">
+          {data.actor && (
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={async () => {
+                const response = await fetch("/api/auth", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "logout" }),
+                });
+                if (response.ok) {
+                  await refresh();
+                  navigate("/login");
+                }
+              }}
+            >
+              Usar otra cuenta
+            </button>
+          )}
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={() => {
+              sessionStorage.removeItem("pc-invitation");
+              setCredential("");
+              navigate("/events");
+            }}
+          >
+            Ahora no
+          </button>
+        </div>
       </section>
     </>
   );
