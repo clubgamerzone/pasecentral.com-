@@ -30,7 +30,7 @@ Flujo recomendado:
 2. **Localidades y precios**: agrega General/VIP y una fase vigente para cada canal web/taquilla. No deben superponerse fases de una misma localidad y canal.
 3. **Equipo**: asigna taquilla y acceso. Publica desde la pestaña **Evento**.
 4. Taquilla → **Caja** → abrir caja para ese evento → **Taquilla** → vender en efectivo. Transferencia exige referencia y confirmación explícita; cortesía exige organizador y motivo.
-5. Abre las boletas emitidas: descarga PDF, imprime 80 mm o comparte el enlace privado manualmente por WhatsApp.
+5. Abre las boletas emitidas: descarga PDF, imprime 80 mm o comparte el PDF por WhatsApp mediante el menú del móvil. En escritorio, descárgalo y adjúntalo como Documento en WhatsApp Web.
 6. Acceso → selecciona el mismo evento → recibe el QR `pc:…` del lector como teclado → Enter. La segunda lectura distinta debe indicar **Entrada ya utilizada**. El reintento de la misma solicitud recupera el resultado original.
 7. Comprador → catálogo → reserva → pago ficticio identificado como DEMO → **Mis entradas**. Una orden con dos entradas genera dos QR distintos.
 8. Administración → ventas del evento, reportes y auditoría. Taquilla → cierre de caja con efectivo declarado.
@@ -106,6 +106,8 @@ Fuentes primarias utilizadas: [Checkout Wompi](https://docs.wompi.co/docs/colomb
 ### Email y cola
 
 El adaptador real usa Resend por HTTP con `EMAIL_API_KEY` y `EMAIL_FROM` verificado. Configura dominio, DKIM/SPF y remitente en tu cuenta. Cada emisión con email crea un `delivery_jobs` persistente. Ejecuta el worker cada minuto con tu scheduler del hosting, mediante **POST** `/api/worker` con `Authorization: Bearer WORKER_SECRET`, o `npm run worker` en un proceso programado con las mismas variables.
+
+Cada correo incluye el QR de cada entrada dentro del mensaje y un PDF individual adjunto, además del enlace protegido para consultar el estado. Aplica `003_email_attachments.sql` antes de desplegar: el contenido del correo se congela cifrado para que los reintentos conserven el mismo payload/idempotencia. Usa `pdf-lib` y `qrcode`; los documentos no se alojan públicamente. Algunos clientes bloquean imágenes incrustadas: los PDFs siguen disponibles.
 
 El worker usa bloqueo `SKIP LOCKED`, reintentos con espera creciente, recuperación de trabajos abandonados e idempotencia del proveedor. Fallar el email no revierte el cobro. Tras seis intentos revisa configuración y usa **Reintentar email**. En demo, las operaciones procesan automáticamente el outbox privado `.local/outbox/`, sin enviar mensajes. No programes un segundo proceso PGlite mientras esté abierto el servidor.
 

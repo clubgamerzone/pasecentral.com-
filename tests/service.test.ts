@@ -17,6 +17,7 @@ import { csv } from "../src/lib/csv";
 import { verifyWebhook } from "../src/lib/wompi";
 import { deliver } from "../src/lib/delivery";
 import { ticketPdf } from "../src/lib/pdf";
+import { PDFDocument } from "pdf-lib";
 let db: DB;
 const admin = USERS[0],
   box = USERS[2],
@@ -521,6 +522,57 @@ describe("Validación online y documentos", () => {
   });
 });
 describe("Pagos, entrega y caja", () => {
+  it("correo contiene QR y PDF individual por entrada, reintento congela adjuntos", async () => {
+    const r = await reserve(2);
+    await paid(r.order_id);
+    let firstPayload = "";
+    await deliver(db, {
+      send: async (message) => {
+        const pdfs = message.attachments.filter(
+          (a) => a.content_type === "application/pdf",
+        );
+        const images = message.attachments.filter(
+          (a) => a.content_type === "image/png",
+        );
+        expect(pdfs).toHaveLength(2);
+        expect(images).toHaveLength(2);
+        expect(images[0].content).not.toBe(images[1].content);
+        expect(message.html).toContain('src="cid:entrada-0"');
+        expect(message.html).not.toContain("pc:");
+        for (const file of pdfs)
+          expect(
+            (
+              await PDFDocument.load(Buffer.from(file.content, "base64"))
+            ).getPageCount(),
+          ).toBe(1);
+        firstPayload = JSON.stringify(message.attachments);
+        throw new Error("Fallo simulado");
+      },
+    });
+    await db.query(
+      "UPDATE events SET title='Título cambiado después del intento' WHERE id=$1",
+      [e1],
+    );
+    await db.query("UPDATE delivery_jobs SET next_attempt_at=now()");
+    await deliver(db, {
+      send: async (message) => {
+        expect(JSON.stringify(message.attachments)).toBe(firstPayload);
+      },
+    });
+    expect((await one(db, "SELECT status FROM delivery_jobs")).status).toBe(
+      "sent",
+    );
+    expect((await one(db, "SELECT count(*)::int AS n FROM tickets")).n).toBe(2);
+    expect(JSON.stringify(await state(db, admin))).not.toContain(
+      "email_payload_encrypted",
+    );
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.query("SET LOCAL ROLE authenticated");
+        await tx.query("SELECT email_payload_encrypted FROM delivery_jobs");
+      }),
+    ).rejects.toThrow(/permission denied/);
+  });
   it("fallo de email conserva la venta y se reintenta sin reemitir", async () => {
     const r = await reserve();
     await paid(r.order_id);

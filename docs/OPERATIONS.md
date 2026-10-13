@@ -52,7 +52,11 @@ Reserva vencida libera disponibilidad por consulta SQL, aunque la orden aún pue
 
 El cron/worker es obligatorio en el hosting. Las ventas no dependen de que Resend responda. En reportes/órdenes revisa fallos; corrige remitente/dominio/clave y reintenta email. El reenvío genera trabajo nuevo, no QR nuevos. Revocar enlace invalida únicamente el acceso por el enlace anterior; sustitución de QR es una operación distinta y auditada.
 
-No copiar el contenido de outbox o documentos a issues, chats públicos, Git o logs. WhatsApp manual comparte acceso a las entradas por enlace secreto: verificar destinatario antes de enviar. No se automatizó ningún mensaje a clientes en esta entrega.
+El correo incluye cada QR incrustado mediante CID y un PDF individual por entrada; conserva el enlace protegido para consultar el estado actual. La cola cifra y congela el payload del primer intento, incluidos adjuntos, para reintentar sin cambiar datos bajo la misma clave de idempotencia. `003_email_attachments.sql` restringe lectura de esa columna; no se expone en `/api/state`. No copiar outbox o documentos a issues, chats públicos, Git o logs. Revocar un enlace no borra PDFs recibidos: anular o sustituir la credencial es lo que impide utilizar su QR.
+
+**Compartir PDF por WhatsApp** prepara un documento con todas las entradas (una página por entrada). En un móvil con Web Share de archivos se abre el menú del sistema y el usuario selecciona WhatsApp y destinatario, confirma y envía. La aplicación no puede elegir WhatsApp por el usuario ni comprobar la entrega a su chat. Si el navegador no permite archivos, descarga el PDF y muestra cómo adjuntarlo como Documento en WhatsApp Web. `wa.me` no adjunta archivos locales automáticamente. No compartir PDFs con quienes no deban utilizar las entradas.
+
+El propietario aplazó WhatsApp automático el 2026-10-13: tiene cuenta empresarial Meta pero todavía no WhatsApp Business/remitente configurado. No hay casilla de promesa de envío automático, cola WhatsApp ni mensajes automáticos habilitados. Para activarlo posteriormente se requiere Business Platform/Cloud API, número remitente habilitado, consentimiento del destinatario, plantilla aprobada y verificación de entregas/costos; la app WhatsApp Business por sí sola no integra este backend.
 
 ## Impresión
 

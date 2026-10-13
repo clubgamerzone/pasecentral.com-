@@ -1,10 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import type { DB } from "./db";
-import { decrypt } from "./crypto";
+import { decrypt, encrypt } from "./crypto";
 import { appUrl, demoMode, required } from "./config";
-import { one } from "./service";
+import { one, ticketDocument } from "./service";
+import { ticketEmail, type TicketEmail } from "./ticket-email";
 export interface EmailAdapter {
-  send(message: { to: string; link: string; jobId: string }): Promise<void>;
+  send(
+    message: TicketEmail & { to: string; link: string; jobId: string },
+  ): Promise<void>;
 }
 export async function deliver(db: DB, adapter?: EmailAdapter) {
   let processed = 0;
@@ -30,8 +33,29 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
         [job.order_id],
       );
       const link = `${appUrl()}/tickets/${job.order_id}#${decrypt(o.share_encrypted)}`;
+      const message: TicketEmail = job.email_payload_encrypted
+        ? JSON.parse(decrypt(job.email_payload_encrypted))
+        : await ticketEmail(
+            await ticketDocument(
+              db,
+              null,
+              job.order_id,
+              decrypt(o.share_encrypted),
+            ),
+            link,
+          );
+      if (!job.email_payload_encrypted)
+        await db.query(
+          "UPDATE delivery_jobs SET email_payload_encrypted=$2 WHERE id=$1",
+          [job.id, encrypt(JSON.stringify(message))],
+        );
       if (adapter) {
-        await adapter.send({ to: o.buyer_email, link, jobId: job.id });
+        await adapter.send({
+          ...message,
+          to: o.buyer_email,
+          link,
+          jobId: job.id,
+        });
       } else if (demoMode()) {
         mkdirSync(".local/outbox", { recursive: true });
         writeFileSync(
@@ -39,8 +63,9 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
           JSON.stringify(
             {
               to: o.buyer_email,
-              subject: "Tus entradas · Pase Central (DEMO)",
               link,
+              ...message,
+              subject: `${message.subject} (DEMO)`,
             },
             null,
             2,
@@ -58,8 +83,7 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
           body: JSON.stringify({
             from: required("EMAIL_FROM"),
             to: [o.buyer_email],
-            subject: "Tus entradas · Pase Central",
-            text: `Consulta y descarga tus entradas: ${link}\nNo compartas este enlace públicamente. Cada entrada permite un ingreso.`,
+            ...message,
           }),
           signal: AbortSignal.timeout(15000),
         });

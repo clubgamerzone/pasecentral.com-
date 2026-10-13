@@ -158,6 +158,23 @@ test("taquilla vende, descarga PDF, acceso admite una sola vez y caja cierra", a
 test("comprador reserva varias entradas y pago demo emite QR distintos", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "canShare", {
+      value: () => true,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, "share", {
+      value: async (data: ShareData) => {
+        const file = data.files?.[0];
+        document.documentElement.dataset.sharedFile = file?.name;
+        document.documentElement.dataset.sharedType = file?.type;
+        document.documentElement.dataset.sharedPdf = file
+          ? (await file.text()).slice(0, 4)
+          : "";
+      },
+      configurable: true,
+    });
+  });
   await login(page, "Comprador demo");
   await page.goto("/events/noche-tropical-demo");
   await page.getByLabel("Cantidad General").selectOption("2");
@@ -172,6 +189,35 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
     .locator(".ticket img")
     .evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
   expect(sources[0]).not.toBe(sources[1]);
+  const shareButton = page.getByRole("button", {
+    name: "Compartir PDF por WhatsApp",
+    exact: true,
+  });
+  await expect(shareButton).toBeEnabled();
+  await shareButton.click();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-shared-file",
+    /^entradas-.*\.pdf$/,
+  );
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-shared-type",
+    "application/pdf",
+  );
+  await expect(page.locator("html")).toHaveAttribute("data-shared-pdf", "%PDF");
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "canShare", {
+      value: () => false,
+      configurable: true,
+    }),
+  );
+  const fallbackDownload = page.waitForEvent("download");
+  await shareButton.click();
+  expect((await fallbackDownload).suggestedFilename()).toMatch(
+    /^entradas-.*\.pdf$/,
+  );
+  await expect(
+    page.getByText("El PDF contiene todas tus entradas", { exact: false }),
+  ).toBeVisible();
   await page.goto("/account/tickets");
   await expect(page.locator("table")).toContainText("Confirmada");
 });

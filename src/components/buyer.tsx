@@ -354,6 +354,9 @@ export function Tickets({ orderId }: { orderId: string }) {
   const [doc, setDoc] = useState<Row | null>(null),
     [error, setError] = useState(""),
     [printing, setPrinting] = useState(false),
+    [shareFile, setShareFile] = useState<File | null>(null),
+    [sharing, setSharing] = useState(false),
+    [shareHelp, setShareHelp] = useState(false),
     [printJobs, setPrintJobs] = useState<Row[]>([]);
   async function request(format = "json") {
     return fetch("/api/tickets", {
@@ -401,6 +404,59 @@ export function Tickets({ orderId }: { orderId: string }) {
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e) {
       notify((e as Error).message, true);
+    }
+  }
+  useEffect(() => {
+    if (!doc) return;
+    let active = true;
+    fetch("/api/tickets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: orderId,
+        share: location.hash.slice(1) || undefined,
+        format: "pdf",
+      }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("No se pudo preparar el PDF");
+        const file = new File([await res.blob()], `entradas-${orderId}.pdf`, {
+          type: "application/pdf",
+        });
+        if (active) setShareFile(file);
+      })
+      .catch(() => {
+        if (active) setShareHelp(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [doc, orderId]);
+  async function sharePdf() {
+    if (!shareFile || !doc) return;
+    if (!navigator.canShare?.({ files: [shareFile] }) || !navigator.share) {
+      setShareHelp(true);
+      await pdf();
+      return;
+    }
+    setSharing(true);
+    try {
+      // The PDF is prepared before the click, preserving the browser's user activation.
+      await navigator.share({
+        files: [shareFile],
+        title: `Entradas · ${doc.event.title}`,
+        text: "Tus entradas de Pase Central. Cada QR admite un ingreso; no lo publiques.",
+      });
+    } catch (e) {
+      if ((e as Error).name !== "AbortError") {
+        setShareHelp(true);
+        notify(
+          "No se pudo compartir el archivo. Descarga el PDF y adjúntalo en WhatsApp.",
+          true,
+        );
+      }
+    } finally {
+      setSharing(false);
     }
   }
   async function print(qz = false) {
@@ -485,19 +541,37 @@ export function Tickets({ orderId }: { orderId: string }) {
         )}
         <button
           className="btn"
-          onClick={() => {
-            const link = `${location.origin}/tickets/${orderId}#${doc.share}`;
-            window.open(
-              `https://wa.me/?text=${encodeURIComponent(`Tus entradas de Pase Central: ${link}\nEste enlace es privado; permite consultar los QR.`)}`,
-              "_blank",
-              "noopener,noreferrer",
-            );
-          }}
+          onClick={sharePdf}
+          disabled={!shareFile || sharing}
         >
           <Share2 />
-          Compartir por WhatsApp
+          {sharing
+            ? "Compartiendo…"
+            : !shareFile
+              ? "Preparando PDF para compartir…"
+              : "Compartir PDF por WhatsApp"}
         </button>
       </div>
+      {shareHelp && (
+        <div className="notice" style={{ marginTop: 16 }}>
+          El PDF contiene todas tus entradas, una por página y cada una con su
+          QR. En WhatsApp Web abre el chat, pulsa Adjuntar → Documento y
+          selecciona el PDF descargado.
+          <button
+            className="btn"
+            style={{ marginTop: 12 }}
+            onClick={() =>
+              window.open(
+                "https://web.whatsapp.com/",
+                "_blank",
+                "noopener,noreferrer",
+              )
+            }
+          >
+            Abrir WhatsApp Web
+          </button>
+        </div>
+      )}
       <div className="notice" style={{ marginTop: 20 }}>
         Cada QR admite un solo ingreso. El enlace compartido permite ver tus
         entradas: entrégalo únicamente a la persona que las usará.

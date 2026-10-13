@@ -758,3 +758,4 @@ El software funciona con PostgreSQL embebido persistente en desarrollo. La demo 
 - Resend, DNS HostGator, SMTP Auth, claves de boletas y scheduler: docs/EMAIL_SETUP_2026-10-13.md; configuración repetible: scripts/configure-email-worker.ts.
 - Ensayo de comprador, taquilla, caja, Wompi sandbox, impresión y lector Honeywell: docs/TEST_REHEARSAL.md (2026-10-13); hardware y checkout completo siguen pendientes de ejecución.
 - Cambio autorizado por el propietario (2026-10-13): `/access` identifica evento por QR sin selector y valida automáticamente; botón manual opcional, aviso de resultado/evento, permisos por evento y sin ingreso offline. Decisión y prueba: docs/DECISIONS.md y docs/OPERATIONS.md.
+- Correo con QR incrustados y PDF individual: src/lib/ticket-email.ts, delivery.ts y migración 003; compartir PDF mediante Web Share/fallback en buyer.tsx. WhatsApp automático aplazado por el propietario el 2026-10-13. Guía: docs/OPERATIONS.md.
