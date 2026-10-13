@@ -181,7 +181,7 @@ export async function state(db: DB, a: Actor | null) {
     if (isAdmin)
       invitations = (
         await tx.query(
-          "SELECT id,email,name,role,event_ids,status,expires_at,email_status,email_attempts,last_error FROM team_invitations ORDER BY created_at DESC LIMIT 200",
+          "SELECT id,email,name,role,event_ids,status,expires_at,email_status,email_attempts,last_error FROM team_invitations WHERE role<>'customer' ORDER BY created_at DESC LIMIT 200",
         )
       ).rows;
     return {

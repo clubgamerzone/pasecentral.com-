@@ -91,3 +91,6 @@ Menú Mi perfil → `/account/profile`: nombre, teléfono, biografía, foto priv
 # Edición de eventos y contenido
 
 Consultar [EVENT_EDITING.md](EVENT_EDITING.md) para editar datos/aforo desde Eventos → Administrar, modificar localidades agotadas y cargar portada/galería. Requiere rol gestor del evento; cupos no pueden quedar bajo ventas/reservas. PDF ya enviados no se actualizan al cambiar fecha/lugar y no se envía aviso masivo automático.
+## Invitar trabajadores
+
+Equipo y usuarios → Invitar a tu equipo: introducir nombre/correo, elegir Cajero / taquilla (por defecto) y marcar uno o varios eventos. También permite administrador global, organizador por evento y acceso. El trabajador crea/inicia su propia cuenta y acepta con correo confirmado. Los compradores se registran normalmente y compran sin invitaciones. Las antiguas invitaciones de comprador pendientes se revocan al aplicar migración 006; no se borran cuentas ni compras. Detalles: PROFILE_TEAM_SETUP.md.

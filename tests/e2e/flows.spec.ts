@@ -101,7 +101,9 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
       .getByLabel("Fin · Bogotá", { exact: true })
       .fill(local(Date.now() + 86400000));
     await page.getByRole("button", { name: "Agregar fase" }).click();
-    await expect(page.locator("table").nth(1)).toContainText(`Precio ${channel}`);
+    await expect(page.locator("table").nth(1)).toContainText(
+      `Precio ${channel}`,
+    );
   }
   await page.goto(url);
   await page.getByRole("button", { name: "Publicar evento" }).click();
@@ -450,15 +452,23 @@ test("perfil con foto privada e invitación a varios eventos", async ({
   await expect(page.locator(".nav-foot")).toContainText("Administración demo");
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/admin/users");
+  await expect(
+    page.getByLabel("Rol de la invitación", { exact: true }),
+  ).toHaveValue("box_office");
+  await expect(
+    page
+      .getByLabel("Rol de la invitación", { exact: true })
+      .locator('option[value="customer"]'),
+  ).toHaveCount(0);
   await page
     .getByLabel("Nombre de la persona", { exact: true })
-    .fill("Comprador invitado");
+    .fill("Trabajador invitado");
   await page
     .getByLabel("Correo de la invitación", { exact: true })
     .fill("customer@example.test");
   await page
     .getByLabel("Rol de la invitación", { exact: true })
-    .selectOption("access_staff");
+    .selectOption("box_office");
   const assignments = page
     .getByRole("group", { name: "Eventos asignados (puedes elegir varios)" })
     .getByRole("checkbox");
@@ -505,7 +515,7 @@ test("perfil con foto privada e invitación a varios eventos", async ({
     .click();
   await expect(page).toHaveURL(/\/account\/profile$/);
   await expect(
-    page.getByRole("link", { name: "Control de acceso", exact: true }),
+    page.getByRole("link", { name: "Taquilla", exact: true }),
   ).toBeVisible();
   const denied = await page.request.post("/api/commands", {
     headers: { origin: "http://127.0.0.1:3100" },

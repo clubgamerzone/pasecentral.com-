@@ -97,6 +97,34 @@ async function scan(
   });
 }
 describe("Inventario, precios y emisión transaccional", () => {
+  it("comprador reserva sin invitación y no puede ser invitado ni por API ni en PostgreSQL", async () => {
+    expect(
+      (await db.query("SELECT id FROM team_invitations")).rows,
+    ).toHaveLength(0);
+    const order = await reserve(1);
+    expect(
+      (
+        await one(db, "SELECT buyer_user_id FROM orders WHERE id=$1", [
+          order.order_id,
+        ])
+      ).buyer_user_id,
+    ).toBe(customer.id);
+    await expect(
+      execute(db, admin, {
+        action: "invite_create",
+        name: "Comprador",
+        email: "buyer@example.test",
+        role: "customer",
+        event_ids: [],
+      }),
+    ).rejects.toThrow();
+    await expect(
+      db.query(
+        "INSERT INTO team_invitations(email,name,role,token_hash,token_encrypted,created_by,email_payload_encrypted) VALUES('buyer@example.test','Comprador','customer','dummy','dummy',$1,'dummy')",
+        [admin.id],
+      ),
+    ).rejects.toThrow();
+  });
   async function editEvent(
     changes: Record<string, unknown> = {},
     actor = admin,

@@ -77,3 +77,6 @@ Invitaciones propias con Resend y cola persistente permiten asignar varios event
 # Edición segura y galería (2026-10-13)
 
 La solicitud del propietario agrega edición de eventos y cupos vendidos/agotados; las mutaciones comparten bloqueo transaccional del evento con venta y vencimiento. Se mantiene la regla de aforo compartido y no se reescriben snapshots históricos. Cupo cero permitido cuando no existen compromisos. Slug público estable. Descripción plana y galería máxima de ocho imágenes normalizadas con Sharp, Storage privado y lectura pública solo mientras el evento está publicado. No usar bucket público ni nuevas llaves de servicio; sesión Supabase y RLS por evento. Guía: EVENT_EDITING.md.
+## Invitaciones exclusivamente laborales (2026-10-13)
+
+Comprador es toda persona registrada que compra; no necesita ni recibe invitación. Se retira customer del comando/formulario de invitación, con restricción de base para nuevas escrituras y revocación auditada de pendientes antiguas. Históricos se conservan sin exposición en equipo ni posibilidad de aceptar; cuentas/ventas no se modifican. Roles invitables: platform_admin, organizer por evento, box_office (Cajero / taquilla) y access_staff, con múltiples eventos para los operativos. Ver PROFILE_TEAM_SETUP.md.

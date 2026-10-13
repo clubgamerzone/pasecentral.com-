@@ -281,23 +281,23 @@ export function AcceptInvitation() {
 }
 export function InviteTeam({ eventId }: { eventId?: string }) {
   const { data, run, busy } = useApp();
-  const [role, setRole] = useState("access_staff"),
+  const [role, setRole] = useState("box_office"),
     [events, setEvents] = useState<string[]>(eventId ? [eventId] : []);
   if (!data.permissions.admin) return null;
   const scoped = ["organizer", "box_office", "access_staff"].includes(role);
   const names: Record<string, string> = {
     platform_admin: "Administrador global",
     organizer: "Organizador por evento",
-    box_office: "Taquilla",
+    box_office: "Cajero / taquilla",
     access_staff: "Acceso",
-    customer: "Comprador",
   };
   return (
     <section className="panel" style={{ marginBottom: 24 }}>
-      <h2>Invitar a una persona</h2>
+      <h2>Invitar a tu equipo</h2>
       <p className="helper" style={{ margin: "12px 0 20px" }}>
-        Recibirá un correo para crear o usar su cuenta. Los permisos se activan
-        al aceptar con el correo verificado.
+        Invita a tus trabajadores y asigna su rol y eventos. Los permisos se
+        activan al aceptar con el correo verificado. Los compradores se
+        registran libremente y no necesitan invitación.
       </p>
       <form
         onSubmit={async (e) => {
@@ -355,9 +355,7 @@ export function InviteTeam({ eventId }: { eventId?: string }) {
           </fieldset>
         ) : (
           <p className="notice" style={{ marginTop: 18 }}>
-            {role === "platform_admin"
-              ? "Administrador global concede acceso a toda la plataforma."
-              : "Comprador no concede permisos de operación."}
+            Administrador global concede acceso a toda la plataforma.
           </p>
         )}
         <div className="form-actions">

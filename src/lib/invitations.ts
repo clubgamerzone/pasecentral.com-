@@ -15,9 +15,8 @@ type InvitationCommand = Extract<
 const labels: Record<string, string> = {
   platform_admin: "Administrador global",
   organizer: "Organizador",
-  box_office: "Taquilla",
+  box_office: "Cajero / taquilla",
   access_staff: "Acceso",
-  customer: "Comprador",
 };
 function emailPayload(
   name: string,
@@ -28,7 +27,7 @@ function emailPayload(
   const link = `${appUrl()}/invite#${credential}`;
   return {
     subject: "Invitación a Pase Central",
-    text: `Hola ${name}.\nTe invitaron como ${labels[role]}.\n${events.length ? `Eventos: ${events.map((e) => e.title).join(", ")}` : role === "platform_admin" ? "Acceso administrativo a toda la plataforma." : "Cuenta de comprador, sin permisos operativos."}\nAbre ${link}\nCrea o inicia sesión con el mismo correo al que llegó esta invitación y confirma tu correo. La invitación vence en siete días; no la compartas. No necesitas enviar tu contraseña al administrador.`,
+    text: `Hola ${name}.\nTe invitaron al equipo como ${labels[role]}.\n${events.length ? `Eventos: ${events.map((e) => e.title).join(", ")}` : "Acceso administrativo a toda la plataforma."}\nAbre ${link}\nCrea o inicia sesión con el mismo correo al que llegó esta invitación y confirma tu correo. La invitación vence en siete días; no la compartas. No necesitas enviar tu contraseña al administrador.`,
   };
 }
 export async function invitationCommand(
@@ -42,6 +41,11 @@ export async function invitationCommand(
       "SELECT * FROM team_invitations WHERE token_hash=$1 FOR UPDATE",
       [hash(c.token)],
     );
+    if (!Object.hasOwn(labels, i.role))
+      fail(
+        "Las invitaciones son solo para el equipo. Para comprar, regístrate o inicia sesión normalmente.",
+        409,
+      );
     if (!a.email_verified || !a.email || a.email.toLowerCase() !== i.email)
       fail("Inicia sesión con la cuenta verificada del correo invitado", 403);
     if (i.status === "accepted" && i.accepted_by === a.id)
@@ -66,7 +70,7 @@ export async function invitationCommand(
         "INSERT INTO platform_admins(user_id) VALUES($1) ON CONFLICT DO NOTHING",
         [a.id],
       );
-    else if (i.role !== "customer")
+    else
       for (const e of events)
         await tx.query(
           "INSERT INTO event_staff(event_id,user_id,role,active) VALUES($1,$2,$3,true) ON CONFLICT(event_id,user_id,role) DO UPDATE SET active=true",
@@ -86,13 +90,9 @@ export async function invitationCommand(
     fail("Solo el administrador global puede invitar", 403);
   if (c.action === "invite_create") {
     const ids = [...new Set(c.event_ids)];
-    if (
-      ["platform_admin", "customer"].includes(c.role)
-        ? ids.length > 0
-        : ids.length === 0
-    )
+    if (c.role === "platform_admin" ? ids.length > 0 : ids.length === 0)
       fail(
-        "Selecciona eventos para el rol operativo; administrador global y comprador no llevan asignación de eventos",
+        "Selecciona eventos para el rol operativo; administrador global no lleva asignación de eventos",
       );
     const events = (
       await tx.query(
