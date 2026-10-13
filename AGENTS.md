@@ -753,4 +753,5 @@ Después de cada cambio documentar dónde quedó la función, cómo accederla, l
 
 El software funciona con PostgreSQL embebido persistente en desarrollo. La demo está prohibida en producción. El lanzamiento comercial requiere credenciales, pruebas Supabase/Wompi/email, impresora/EDA51 y ensayo; no marcar esos pendientes como verificados por una prueba local.
 - Configuración de cuentas y datos necesarios para demo conectada: docs/SERVICE_SETUP.md (2026-10-12).
+- Conexión Supabase con TLS, pruebas SQL concurrentes, Vercel staging publicado, Auth y webhook Wompi sandbox: docs/CLOUD_SETUP_2026-10-13.md (2026-10-13). Dominio de ensayo: https://pasecentral-demo.vercel.app; email y hardware pendientes.
 - Conexión real Supabase/Wompi/Vercel, certificado TLS y ensayo multiconexión: docs/CLOUD_SETUP_2026-10-13.md.

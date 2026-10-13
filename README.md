@@ -4,6 +4,12 @@ MVP de boletería para fiestas en Colombia. Español, COP entero y presentación
 
 Incluye eventos independientes, localidades y fases de precio, compradores, taquilla, reservas online, QR individuales, PDF, control de ingreso, caja, devoluciones manuales, CSV y auditoría. **El entorno local usa datos ficticios. El lanzamiento comercial requiere configurar y verificar los servicios externos y el hardware.**
 
+## Demo conectada
+
+Disponible en https://pasecentral-demo.vercel.app. Usa Supabase real y Wompi **sandbox**, identificado como **PRUEBAS CONECTADAS**. El administrador inicial utiliza su cuenta verificada de Supabase. El evento `Fiesta de demostración · DEMO` tiene datos ficticios y cupos disponibles; no anuncia una fiesta real. Configuración y evidencia: [docs/CLOUD_SETUP_2026-10-13.md](docs/CLOUD_SETUP_2026-10-13.md).
+
+Los emails de boletas requieren todavía Resend y un scheduler del worker; impresión y EDA51 requieren ensayo físico. La configuración conectada privada en `.env.local` cambia el modo local: para usar los perfiles ficticios descritos abajo, guardar ese archivo temporalmente en una ubicación privada fuera del checkout y ejecutar sin él. No compartir ni subir el archivo.
+
 ## Probar ahora en Windows
 
 Requisitos: Node.js **22.14 o superior**, npm y Git. No necesitas Docker ni credenciales para la demo.

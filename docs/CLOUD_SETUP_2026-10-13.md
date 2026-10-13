@@ -42,4 +42,26 @@ Pruebas de regresión: lint, tipos, 36 pruebas Vitest y build pasaron; cinco flu
 
 Cuenta/equipo observado: `jd's projects` (`jds-projects-5cb9c772`), plan Hobby. Importación desde `clubgamerzone/pasecentral.com-`, rama `main`, proyecto preparado `pasecentral-demo`. El usuario autorizó explícitamente guardar las credenciales necesarias como variables de servidor y desplegar la demo conectada. Las variables de producción de Vercel seguirán representando **staging y Wompi sandbox**.
 
-Pendiente de verificar el deployment y su dominio efectivo antes de registrar webhook y URLs de Auth. Resend/SMTP, scheduler de emails y hardware siguen pendientes; no había una sesión Resend aportada. No se contrataron planes pagos, no se modificó DNS y no se habilitaron pagos reales.
+Deployment inicial del código `db8f5589a2bdad12389e0504996b6ebc900a9557`: **Ready**, dominio https://pasecentral-demo.vercel.app, deployment Vercel `5YhQYpS41HN9rT5qJPb2Uny1Av63`. Se creó desde Deployments → Actions → Create Deployment → main → Deploy to Production. El destino de Vercel se llama Production, pero el software sigue configurado como staging/sandbox.
+
+En Settings → Environment Variables se guardaron 15 variables de servidor como **Secret**, exclusivamente para Production. Las dos variables `NEXT_PUBLIC_SUPABASE_*` son **Config**, como exige Vercel para valores públicos. Un guardado masivo puede persistir las variables válidas aunque rechace las de prefijo público: se comprobó la lista antes de completar las dos restantes. No se añadieron credenciales a Preview ni Development. El `APP_URL` desplegado usa el dominio HTTPS; la copia local conserva su URL local.
+
+Supabase → Authentication → URL Configuration: Site URL y redirect permitido exacto `https://pasecentral-demo.vercel.app`. Wompi → Desarrollo → Programadores, vista Sandbox: URL de Eventos `https://pasecentral-demo.vercel.app/api/webhooks/wompi`, comprobada al volver a abrir Programadores después de recargar. No se modificó la URL de producción del comercio.
+
+Verificación pública real: GET `/api/state` HTTP 200, `environment=staging`, `demo=false`, sin actor autenticado, un evento publicado ficticio. El fixture `Fiesta de demostración · DEMO` tiene aforo ficticio 20 (General 15, VIP 5), precios ficticios web 15.000/30.000 COP y taquilla 20.000/40.000 COP. Fechas de ensayo y admisión amplias para probar la operación; no representan datos del primer evento real. Se creó mediante `execute()` en `src/lib/service.ts`, conservando autorización, transacciones y auditoría.
+
+Las capturas de comprobación están únicamente en `.local/verification/`, ignoradas por Git. Resend/SMTP, scheduler de emails y hardware siguen pendientes; no había una sesión Resend aportada. No se contrataron planes pagos, no se modificó DNS y no se habilitaron pagos reales. El guardado del webhook no acredita una compra sandbox aprobada; esa prueba completa sigue pendiente.
+
+Controles públicos del deployment: POST `/api/commands` sin sesión → 401; origen ajeno → 403; intento de login demo → 403; worker sin autorización → 401; webhook sin formato/firma válida → 400. La identidad administrativa existe, está confirmada y no bloqueada; el primer intento manual de login devolvió error y requiere comprobar la contraseña elegida por el propietario. No se leyó ni cambió esa contraseña.
+
+## Recuperación de contraseña
+
+El propietario indicó que olvidó la contraseña de Auth y que el enlace anterior no abría un formulario. Se añadió **Olvidé mi contraseña** en `/login`, solicitud de correo en `/forgot-password` y formulario en `/reset-password`. Código UI: `src/components/recovery.tsx`; API: `src/app/api/auth/route.ts`, acciones `forgot`/`reset`; retorno: `src/app/auth/confirm/route.ts`.
+
+El retorno intercambia el código PKCE por cookies de sesión; admite también `token_hash` de tipo recovery para una futura plantilla SMTP personalizada. Un enlace inválido/vencido regresa a la solicitud; nunca acepta un destino externo. El cambio requiere identidad verificada en servidor, origen autorizado y rate limit; actualiza exclusivamente al usuario de su sesión y cierra esa sesión. No se registran contraseñas ni credenciales de recuperación.
+
+Se añadió el redirect exacto `https://pasecentral-demo.vercel.app/auth/confirm` en Supabase. No se modificaron plantillas: el panel actual requiere SMTP personalizado para editarlas. Se mantiene el correo predeterminado de Supabase y su flujo PKCE; pedir un enlace **nuevo desde la aplicación** y abrirlo en el mismo navegador donde se solicitó. Los enlaces anteriores del dashboard no verifican este nuevo flujo. El propietario introduce, confirma y guarda personalmente la contraseña nueva.
+
+Fuente: https://supabase.com/docs/guides/auth/passwords. El correo predeterminado es limitado (dos correos por hora, disponibilidad de prueba); la entrega efectiva depende de Supabase. Para compradores externos se necesita SMTP propio. El email de boletas usa otro adaptador (`src/lib/delivery.ts`, Resend) y sigue pendiente.
+
+Pruebas de recuperación: `tests/auth-recovery.test.ts`, siete casos que cubren sesión obligatoria, CSRF, identidad de sesión, cierre de sesión, solicitud no enumerativa, enlace vencido, retorno PKCE y rechazo de tipos ajenos. Lint, tipos, 43 pruebas y build aprobados. El cambio de contraseña y la entrega del correo requieren comprobación manual del propietario.

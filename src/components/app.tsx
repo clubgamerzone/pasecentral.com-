@@ -43,6 +43,7 @@ import {
   UserManagement,
 } from "./operations";
 import { EventPurchase, Tickets, Checkout } from "./buyer";
+import { Recovery } from "./recovery";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -286,6 +287,8 @@ export function App() {
   ];
   let screen: React.ReactNode;
   if (path === "/login") screen = <Login />;
+  else if (path === "/forgot-password") screen = <Recovery />;
+  else if (path === "/reset-password") screen = <Recovery reset />;
   else if (path.startsWith("/tickets/"))
     screen = <Tickets orderId={path.split("/")[2]} />;
   else if (path.startsWith("/checkout/"))
@@ -571,6 +574,11 @@ function Login() {
           >
             {signup ? "Ya tengo una cuenta" : "Crear una cuenta de comprador"}
           </button>
+          {!signup && (
+            <a className="link" href="/forgot-password">
+              Olvidé mi contraseña
+            </a>
+          )}
         </form>
       )}
     </section>

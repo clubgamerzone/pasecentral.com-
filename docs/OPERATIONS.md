@@ -71,3 +71,9 @@ Por defecto las vistas detalladas de auditoría y trabajos muestran los registro
 ## Documentación de cambios futuros
 
 Después de cada modificación actualizar `docs/PROGRESS.md` y `docs/DECISIONS.md`: función añadida, ubicación, forma de acceder/ejecutar, dependencias/cloud usados, comandos de pruebas y resultados, límites y commit relacionado. Mantener `AGENTS.md` como alcance y primer índice. Nunca documentar secretos ni afirmar pruebas externas no ejecutadas.
+
+# Recuperación de acceso (2026-10-13)
+
+En `/login` usar **Olvidé mi contraseña** → introducir correo → pedir enlace nuevo → abrir el correo en el mismo navegador → elegir y confirmar contraseña de al menos 10 caracteres → iniciar sesión de nuevo. No compartir contraseñas ni enlaces. Si el enlace venció, repetir la solicitud; no reenviar un enlace antiguo. El SMTP predeterminado de Supabase es limitado; configurar SMTP propio para compradores reales. La contraseña de Auth es distinta de PostgreSQL.
+
+Código: `src/components/recovery.tsx`, acciones `forgot`/`reset` en `src/app/api/auth/route.ts`, callback `src/app/auth/confirm/route.ts`; redirect exacto configurado en Authentication → URL Configuration. El propietario realiza los cambios de contraseña. Evidencia y límites en `CLOUD_SETUP_2026-10-13.md`.

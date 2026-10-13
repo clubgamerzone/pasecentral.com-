@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { supabase, demoLogin } from "@/lib/auth";
-import { demoMode } from "@/lib/config";
+import { appUrl, demoMode } from "@/lib/config";
 import { originCheck, jsonBody, errorResponse } from "@/lib/http";
 import { database } from "@/lib/db";
 import { fail, rateLimit } from "@/lib/service";
 const schema = z.object({
-  action: z.enum(["login", "signup", "logout", "demo"]),
+  action: z.enum(["login", "signup", "logout", "demo", "forgot", "reset"]),
   id: z.string().uuid().optional(),
   email: z.email().optional(),
   password: z.string().min(10).max(128).optional(),
@@ -27,8 +27,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
     if (demoMode()) fail("Usa una cuenta de demostración");
+    if (b.action === "reset") {
+      const s = await supabase();
+      const {
+        data: { user },
+        error,
+      } = await s.auth.getUser();
+      if (error || !user)
+        fail("Abre un enlace de recuperación válido desde tu correo.", 401);
+      if (!b.password) fail("Falta la nueva contraseña");
+      await rateLimit(await database(), `password:${user.id}`, 5);
+      const result = await s.auth.updateUser({ password: b.password });
+      if (result.error)
+        fail(
+          "No se pudo guardar la contraseña. Usa una contraseña nueva de al menos 10 caracteres.",
+        );
+      await s.auth.signOut();
+      return NextResponse.json({
+        ok: true,
+        message:
+          "Contraseña actualizada. Inicia sesión con tu nueva contraseña.",
+      });
+    }
+    if (!b.email) fail("Falta el correo");
     await rateLimit(await database(), `auth:${b.email}`, 10);
     const s = await supabase();
+    if (b.action === "forgot") {
+      const { error } = await s.auth.resetPasswordForEmail(b.email, {
+        redirectTo: `${appUrl()}/auth/confirm`,
+      });
+      if (error)
+        fail(
+          "No se pudo solicitar el correo. Inténtalo más tarde o contacta al administrador.",
+          503,
+        );
+      return NextResponse.json({
+        ok: true,
+        message:
+          "Si existe una cuenta con ese correo, recibirás un enlace de recuperación. Revisa también spam. Abre el enlace más reciente.",
+      });
+    }
     if (!b.email || !b.password) fail("Faltan credenciales");
     const res =
       b.action === "signup"
