@@ -15,7 +15,8 @@
     "bootstrap": "tsx --env-file-if-exists=.env.local scripts/bootstrap.ts",
     "worker": "tsx --env-file-if-exists=.env.local scripts/delivery.ts",
     "format": "prettier --write src scripts tests docs *.json *.ts *.mjs",
-    "test:connected": "tsx --env-file-if-exists=.env.local scripts/verify-connected.ts"
+    "test:connected": "tsx --env-file-if-exists=.env.local scripts/verify-connected.ts",
+    "worker:configure": "tsx --env-file-if-exists=.env.local scripts/configure-email-worker.ts"
   },
   "engines": {
     "node": ">=22.14.0"

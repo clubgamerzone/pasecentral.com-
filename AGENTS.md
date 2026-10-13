@@ -755,3 +755,4 @@ El software funciona con PostgreSQL embebido persistente en desarrollo. La demo 
 - Configuración de cuentas y datos necesarios para demo conectada: docs/SERVICE_SETUP.md (2026-10-12).
 - Conexión Supabase con TLS, pruebas SQL concurrentes, Vercel staging publicado, Auth y webhook Wompi sandbox: docs/CLOUD_SETUP_2026-10-13.md (2026-10-13). Dominio de ensayo: https://pasecentral-demo.vercel.app; email y hardware pendientes.
 - Conexión real Supabase/Wompi/Vercel, certificado TLS y ensayo multiconexión: docs/CLOUD_SETUP_2026-10-13.md.
+- Resend, DNS HostGator, SMTP Auth, claves de boletas y scheduler: docs/EMAIL_SETUP_2026-10-13.md; configuración repetible: scripts/configure-email-worker.ts.
