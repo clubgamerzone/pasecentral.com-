@@ -13,6 +13,12 @@ Guía preparada el 2026-10-13. No registra hardware ni pagos sandbox como aproba
 
 ## Honeywell EDA51: lector como teclado
 
+Equipo confirmado por el propietario (2026-10-13): Honeywell EDA51, Android 8.1.0, navegador Google Chrome. Impresión aplazada por el propietario. Windows detectó el dispositivo como EDA51, clase WPD, estado OK. Existe Android SDK Platform Tools en el PC; `adb devices -l` no mostró dispositivos disponibles. La conexión USB actual no permitió consultar firmware, versión de Chrome ni configuración del scanner. No se modificaron ajustes del equipo ni se habilitó depuración.
+
+Para este equipo comenzar con Wedge activado, método Standard/Normal si está disponible, prefijo vacío, QR activado, sufijo `\r` (barra invertida y r, sin comillas) y Wedge as keys `9,10,13`. Verificar primero que una lectura llena el campo y Enter envía el formulario; si falta Enter, usar el botón para separar la lectura de la configuración del sufijo. Android 8.1.0 por sí solo no identifica la revisión MR: Honeywell advierte que, al usar método Keyboard en Android 8 anterior a MR19, los caracteres incluidos en Wedge as keys pueden perderse. No aplicar ese método hasta comprobar revisión y necesidad.
+
+La conexión al PC no es necesaria para operar: Chrome del EDA51 conecta directamente por HTTPS a la aplicación. Para diagnóstico adicional, el propietario puede consultar **Settings → About phone** (número de compilación) y la versión de Chrome. Si posteriormente desea diagnóstico USB con ADB, deberá habilitar depuración USB y aceptar la autorización RSA en el propio equipo; esto no es requisito para la prueba y todavía no se ha solicitado ni realizado.
+
 La pantalla implementada está en `src/components/operations.tsx`, componente `Access`, ruta `/access`. No requiere aplicación nativa de Pase Central ni modo offline.
 
 1. Conectar el equipo a Wi-Fi o datos y comprobar que abre https://pasecentral-demo.vercel.app/login.
