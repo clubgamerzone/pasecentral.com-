@@ -6,6 +6,7 @@ const auth = vi.hoisted(() => ({
   resetPasswordForEmail: vi.fn(),
   exchangeCodeForSession: vi.fn(),
   verifyOtp: vi.fn(),
+  setSession: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({
   supabase: async () => ({ auth }),
@@ -30,6 +31,36 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("recuperación de cuenta", () => {
+  it("rechaza una credencial de enlace implícito no válida", async () => {
+    auth.setSession.mockResolvedValue({ error: new Error("invalid") });
+    const r = await POST(
+      request({
+        action: "recovery",
+        access_token: "invalid-access-token-example",
+        refresh_token: "invalid-refresh-token",
+      }),
+    );
+    expect(r.status).toBe(401);
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+  it("verifica identidad del enlace del dashboard antes de permitir recuperación", async () => {
+    auth.setSession.mockResolvedValue({ error: null });
+    auth.getUser.mockResolvedValue({
+      data: { user: null },
+      error: new Error("invalid identity"),
+    });
+    auth.signOut.mockResolvedValue({ error: null });
+    const r = await POST(
+      request({
+        action: "recovery",
+        access_token: "test-access-token-example",
+        refresh_token: "test-refresh-token",
+      }),
+    );
+    expect(r.status).toBe(401);
+    expect(auth.signOut).toHaveBeenCalledOnce();
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
   it("rechaza cambio de contraseña sin identidad autenticada", async () => {
     auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
     expect(

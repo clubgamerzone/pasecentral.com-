@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Field, useApp } from "./app";
 
 export function Recovery({ reset = false }: { reset?: boolean }) {
   const { data, notify, refresh, navigate } = useApp();
+  const invalid = useSearchParams().get("invalid") === "1";
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [done, setDone] = useState(false);
@@ -17,6 +19,12 @@ export function Recovery({ reset = false }: { reset?: boolean }) {
   const authorized = !reset || !!data.actor;
   return (
     <section className="panel login-panel">
+      {invalid && (
+        <div className="notice" role="alert">
+          No pudimos validar ese enlace. Solicita uno nuevo y abre el correo más
+          reciente.
+        </div>
+      )}
       <div className="eyebrow">Tu cuenta Pase Central</div>
       <h1>{reset ? "Elige una nueva contraseña" : "Recuperar contraseña"}</h1>
       <p>

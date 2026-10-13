@@ -194,7 +194,40 @@ export function App() {
   useEffect(() => {
     let active = true;
     const timer = setTimeout(() => {
-      refresh().catch((e) => {
+      async function initialize() {
+        const fragment = new URLSearchParams(window.location.hash.slice(1));
+        let destination: string | undefined;
+        if (fragment.get("type") === "recovery" || fragment.has("error")) {
+          const access_token = fragment.get("access_token"),
+            refresh_token = fragment.get("refresh_token");
+          // Clear credentials before navigating or making any server request.
+          window.history.replaceState(
+            null,
+            "",
+            window.location.pathname + window.location.search,
+          );
+          destination = "/forgot-password?invalid=1";
+          if (access_token && refresh_token) {
+            try {
+              const response = await fetch("/api/auth", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "recovery",
+                  access_token,
+                  refresh_token,
+                }),
+              });
+              if (response.ok) destination = "/reset-password";
+            } catch {
+              /* A network error never authenticates a recovery session. */
+            }
+          }
+        }
+        await refresh();
+        if (active && destination) router.replace(destination);
+      }
+      initialize().catch((e) => {
         if (active) setError(e.message);
       });
     }, 0);
@@ -202,7 +235,7 @@ export function App() {
       active = false;
       clearTimeout(timer);
     };
-  }, [refresh]);
+  }, [refresh, router]);
   const notify = (message: string, error = false) =>
     setToast({ message, error });
   async function run(body: Row, success = "Operación guardada") {

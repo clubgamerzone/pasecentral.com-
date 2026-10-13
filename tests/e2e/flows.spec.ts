@@ -1,5 +1,17 @@
 import { test, expect, type Page } from "@playwright/test";
 import { USERS } from "../../src/lib/seed";
+test("enlace de recuperación inválido borra credenciales de URL y no concede sesión", async ({
+  page,
+}) => {
+  await page.goto(
+    "/#type=recovery&access_token=invalid-access-token-example&refresh_token=invalid-refresh-token",
+  );
+  await expect(page).toHaveURL(/\/forgot-password\?invalid=1$/);
+  await expect(
+    page.getByRole("link", { name: "Iniciar sesión", exact: true }),
+  ).toBeVisible();
+  expect(new URL(page.url()).hash).toBe("");
+});
 async function login(page: Page, name: string) {
   await page.goto("/login");
   await page.getByRole("button", { name, exact: true }).click();

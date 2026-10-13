@@ -7,11 +7,21 @@ import { originCheck, jsonBody, errorResponse } from "@/lib/http";
 import { database } from "@/lib/db";
 import { fail, rateLimit } from "@/lib/service";
 const schema = z.object({
-  action: z.enum(["login", "signup", "logout", "demo", "forgot", "reset"]),
+  action: z.enum([
+    "login",
+    "signup",
+    "logout",
+    "demo",
+    "forgot",
+    "reset",
+    "recovery",
+  ]),
   id: z.string().uuid().optional(),
   email: z.email().optional(),
   password: z.string().min(10).max(128).optional(),
   name: z.string().min(1).max(150).optional(),
+  access_token: z.string().min(20).max(8192).optional(),
+  refresh_token: z.string().min(10).max(2048).optional(),
 });
 export async function POST(req: Request) {
   try {
@@ -27,6 +37,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
     if (demoMode()) fail("Usa una cuenta de demostración");
+    if (b.action === "recovery") {
+      if (!b.access_token || !b.refresh_token)
+        fail("El enlace no es válido.", 401);
+      const s = await supabase();
+      const result = await s.auth.setSession({
+        access_token: b.access_token,
+        refresh_token: b.refresh_token,
+      });
+      if (result.error)
+        fail("El enlace no es válido o venció. Solicita uno nuevo.", 401);
+      const {
+        data: { user },
+        error,
+      } = await s.auth.getUser();
+      if (error || !user) {
+        await s.auth.signOut();
+        fail("El enlace no es válido o venció. Solicita uno nuevo.", 401);
+      }
+      await rateLimit(await database(), `recovery:${user.id}`, 10);
+      return NextResponse.json({ ok: true });
+    }
     if (b.action === "reset") {
       const s = await supabase();
       const {
