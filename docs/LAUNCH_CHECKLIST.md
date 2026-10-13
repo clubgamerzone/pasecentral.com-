@@ -2,6 +2,8 @@
 
 El código local y las pruebas automatizadas no sustituyen este ensayo. Estado inicial: pendiente de servicios y hardware.
 
+Actualización de staging (2026-10-13): hosting HTTPS/Supabase/Auth y administrador conectados; Resend con dominio/SMTP y entrega real al propietario verificados; worker automático activo con un envío procesado correctamente. Ver EMAIL_SETUP_2026-10-13.md. Las casillas siguientes siguen siendo requisitos de lanzamiento comercial, incluida la revisión del ambiente, SMTP/cargas, compradores, pagos reales autorizados y hardware.
+
 ## Configuración y autorización
 
 - [ ] Fecha, horario de acceso y aforo del primer evento confirmados por el organizador.

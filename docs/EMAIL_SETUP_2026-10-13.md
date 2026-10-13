@@ -40,4 +40,8 @@ Fuentes: [Resend SMTP](https://resend.com/docs/send-with-supabase-smtp), [domini
 
 ## Verificación
 
-Lint, tipos, 45 pruebas Vitest y build aprobados. Dominio, claves restringidas, SMTP persistido, sesión administrativa, variables Vercel y job activo comprobados. Pendiente verificar deployment con variables nuevas y entrega de boleta ficticia por la cola. Capturas privadas: .local/verification/, ignoradas. No se solicitó otro reset ni se enviaron mensajes a clientes.
+Lint, tipos, 45 pruebas Vitest y build aprobados. Dominio, claves restringidas, SMTP persistido, sesión administrativa, variables Vercel y job activo comprobados. Código/configuración publicados en `39a2cf73896aba116175c5de49daa824cfc84271`; Vercel confirmó **Ready** para el deployment de ese commit con las variables nuevas.
+
+Se creó una cortesía individual en el evento ficticio de staging, con contacto del propietario y motivo de ensayo; no hubo pago ni mensajes a clientes. El cron real de las 11:53 America/Bogota procesó la cola: job succeeded, respuesta del worker HTTP 200, delivery_jobs sent con un intento y sin error. El panel Resend confirmó **Delivered** para `Tus entradas · Pase Central` y para el correo de recuperación solicitado por el propietario. Esto verifica aceptación de entrega por los servidores de correo; no afirma que el usuario abrió la boleta. Se conserva la orden y auditoría; los datos privados de la prueba quedan en .local/verification/, ignorados por Git.
+
+Capturas privadas: resend-domain-verified.png, supabase-smtp-saved.png, admin-authenticated.png y resend-emails-delivered.png. No se solicitó otro reset después del acceso confirmado del propietario. La revisión posterior de documentación registra los resultados sin modificar código.

@@ -92,3 +92,5 @@ Bloqueo comunicado posteriormente: Supabase rechazó otro correo de recuperació
 ## Resend y correo conectado · 2026-10-13
 
 Ver EMAIL_SETUP_2026-10-13.md. Subdominio verificado, tres registros DNS autorizados, dos claves Sending access restringidas. SMTP guardado y comprobado tras recargar; el propietario inició sesión y se verificó su panel administrativo. Variables EMAIL guardadas como Secret en Vercel y archivo privado. Scheduler cada minuto configurado con Vault y comprobación de que net no está expuesto por Data API. Lint, tipos, 45 pruebas y build pasaron. Deployment de variables y entrega efectiva aún por verificar.
+
+Verificación completada: código/configuración `39a2cf7` desplegados Ready. Una cortesía ficticia para el propietario generó una entrega; pg_cron la procesó automáticamente, worker HTTP 200, sent en un intento sin error. Resend mostró Delivered para la boleta y para recuperación Auth; sesión del administrador comprobada. No hubo pago real ni mensajes a clientes. Hardware y compra Wompi sandbox completa siguen pendientes.
