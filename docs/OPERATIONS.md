@@ -24,11 +24,11 @@ Los componentes están bajo `src/components/`. Para buscar una regla concreta us
 
 ## Antes de abrir puertas
 
-Confirma evento, horario de ingreso en Bogotá, localidad, precios, operadores asignados, aforo y red. Taquilla abre su caja con fondo contado. Acceso inicia sesión, elige evento y configura etiqueta de puerta/dispositivo.
+Confirma evento, horario de ingreso en Bogotá, localidad, precios, operadores asignados, aforo y red. Taquilla abre su caja con fondo contado. Acceso inicia sesión y configura etiqueta de puerta/dispositivo. En `/access` el QR identifica el evento en servidor; no hay selección manual. El operador solo admite eventos para los que tiene permiso. Si tiene varias asignaciones, puede admitir entradas de cualquiera de ellas: organizar las asignaciones según la puerta y revisar el evento mostrado en el resultado.
 
-El Honeywell EDA51 debe escribir el QR en el campo enfocado como teclado y añadir Enter. El foco vuelve después de cada lectura. Verificar configuración del scanner en el dispositivo real: la implementación web no configura el hardware. Lecturas vacías no autorizan nada.
+El Honeywell EDA51 debe escribir el QR en el campo enfocado como teclado. La lectura se envía automáticamente tras 350 ms sin cambios; Enter también envía, con protección frente a doble envío. El botón Validar entrada queda como alternativa y reintento. El aviso verde/rojo muestra resultado y evento autorizado, desaparece tras 2,5 segundos y conserva un resultado en pantalla. No exige cerrar el aviso para la siguiente lectura. El foco vuelve después de cada lectura. Verificar Wedge en el dispositivo real: la implementación web no configura el hardware. Lecturas vacías no autorizan nada.
 
-Colores y texto deben coincidir: solo **Ingreso autorizado** permite paso. QR equivocado, entrada usada/anulada, evento diferente, horario cerrado, operador no autorizado o fallo de red deniegan ingreso. La consulta por serial no reemplaza el secreto: **Ingreso manual** solicita motivo y confirmación explícita, usa las mismas reglas y audita.
+Colores y texto deben coincidir: solo **Ingreso autorizado** permite paso. QR desconocido, entrada usada/anulada, horario cerrado, operador no autorizado o fallo de red deniegan ingreso. El resultado anterior se retira al empezar una lectura nueva para no confundirlo con una autorización pendiente. La consulta por serial no reemplaza el secreto: **Ingreso manual** solicita motivo y confirmación explícita, usa las mismas reglas y audita; busca en los eventos autorizados y usa el evento propio de la entrada.
 
 Si se pierde una respuesta, vuelve a intentar la misma lectura sin cambiar el QR: se conserva `request_id`. Si se refresca completamente la página, se pierde ese UUID; el historial y el estado de entrada permiten supervisar la incidencia. No hay reingreso automático.
 

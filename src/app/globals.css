@@ -1204,3 +1204,31 @@ textarea {
     display: block;
   }
 }
+.scan-popup {
+  position: fixed;
+  z-index: 100;
+  left: 5%;
+  right: 5%;
+  top: 25%;
+  padding: 28px;
+  border-radius: 20px;
+  background: #7f1d1d;
+  color: white;
+  text-align: center;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+}
+.scan-popup.accepted {
+  background: #14532d;
+}
+.scan-popup h2 {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+.scan-popup p {
+  margin: 8px 0;
+}
+.scan-popup button {
+  pointer-events: auto;
+  margin-top: 14px;
+}

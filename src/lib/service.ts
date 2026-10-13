@@ -422,6 +422,7 @@ async function checkin(
   if (prior) {
     if (prior.operator_id !== a.id || prior.event_id !== c.event_id)
       fail("Intento ajeno", 403);
+    if (!authorized) return { result: "unauthorized" };
     return { result: prior.result, ticket_id: prior.ticket_id };
   }
   const t = (
@@ -659,6 +660,32 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "checkin":
       case "manual_checkin":
         return checkin(tx, a, c);
+      case "scan_auto": {
+        // Resolve only from the secret credential; never trust an event supplied by a client.
+        const t = (
+          await tx.query(
+            "SELECT event_id FROM tickets WHERE credential_hash=$1",
+            [hash(c.credential.replace(/^pc:/, ""))],
+          )
+        ).rows[0];
+        if (!t) {
+          await audit(tx, a, "scan_unknown", "checkin", c.request_id, {
+            device_id: c.device_id,
+            gate_label: c.gate_label,
+          });
+          return { result: "unknown_ticket" };
+        }
+        const r = await checkin(tx, a, {
+          ...c,
+          action: "checkin",
+          event_id: t.event_id,
+        });
+        if (r.result === "unauthorized") return { result: "unauthorized" };
+        const e = await one(tx, "SELECT title FROM events WHERE id=$1", [
+          t.event_id,
+        ]);
+        return { ...r, event_title: e.title, event_id: t.event_id };
+      }
       case "demo_payment": {
         if (!demoMode()) fail("Pago simulado deshabilitado", 403);
         const o = await orderPermit(tx, a, c.order_id);

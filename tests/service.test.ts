@@ -346,6 +346,65 @@ describe("Permisos y RLS", () => {
   });
 });
 describe("Validación online y documentos", () => {
+  it("QR identifica evento sin selección y conserva idempotencia", async () => {
+    const sale = await sell(1, e2);
+    const doc = await ticketDocument(db, box, sale.order_id);
+    const c = {
+      action: "scan_auto",
+      credential: doc.tickets[0].credential,
+      request_id: randomUUID(),
+      device_id: "AUTO",
+      gate_label: "Puerta",
+    };
+    const first = await execute(db, access, c);
+    expect(first).toMatchObject({ result: "accepted", event_id: e2 });
+    expect(first.event_title).toBeTruthy();
+    expect(await execute(db, access, c)).toMatchObject({
+      result: "accepted",
+      event_id: e2,
+    });
+    expect(
+      await execute(db, access, { ...c, request_id: randomUUID() }),
+    ).toMatchObject({ result: "already_used" });
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM check_in_attempts WHERE result='accepted'",
+        )
+      ).n,
+    ).toBe(1);
+  });
+  it("detección automática no revela evento ni consume boleta sin permiso", async () => {
+    const sale = await sell(1, e2);
+    const doc = await ticketDocument(db, box, sale.order_id);
+    await db.query("DELETE FROM event_staff WHERE user_id=$1 AND event_id=$2", [
+      access.id,
+      e2,
+    ]);
+    const c = {
+      action: "scan_auto",
+      credential: doc.tickets[0].credential,
+      request_id: randomUUID(),
+      device_id: "AUTO",
+      gate_label: "Puerta",
+    };
+    expect(await execute(db, access, c)).toEqual({ result: "unauthorized" });
+    expect(
+      (
+        await one(db, "SELECT status FROM tickets WHERE id=$1", [
+          doc.tickets[0].id,
+        ])
+      ).status,
+    ).toBe("valid");
+    expect(
+      await execute(db, access, {
+        ...c,
+        credential: "QR ajeno",
+        request_id: randomUUID(),
+      }),
+    ).toEqual({ result: "unknown_ticket" });
+  });
   it("dos lectores producen una sola aceptación", async () => {
     const r = await sell(),
       doc = await ticketDocument(db, box, r.order_id);

@@ -109,16 +109,39 @@ test("taquilla vende, descarga PDF, acceso admite una sola vez y caja cierra", a
   await page.getByRole("button", { name: "Descargar PDF" }).click();
   expect((await download).suggestedFilename()).toContain(".pdf");
   await login(page, "Acceso demo");
-  await page
-    .getByLabel("Evento activo", { exact: true })
-    .selectOption("00000000-0000-4000-8000-000000000002");
+  await expect(page.getByLabel("Evento activo", { exact: true })).toHaveCount(
+    0,
+  );
+  const attempts: string[] = [];
+  let loseResponse = true;
+  await page.route("**/api/commands", async (route) => {
+    const command = route.request().postDataJSON();
+    if (command.action !== "scan_auto") return route.continue();
+    attempts.push(command.request_id);
+    if (loseResponse) {
+      loseResponse = false;
+      await route.fetch();
+      return route.abort();
+    }
+    return route.continue();
+  });
   await page.getByLabel("Escanea el QR").fill(credential);
+  await expect(page.locator(".scan-result")).toContainText("Error de conexión");
+  await expect(page.locator(".scan-popup")).toContainText(
+    "No autorices el ingreso",
+  );
+  await expect(page.getByLabel("Escanea el QR")).toHaveValue(credential);
   await page.getByRole("button", { name: "Validar entrada" }).click();
+  await expect(page.locator(".scan-popup")).toContainText("Ingreso autorizado");
+  expect(attempts).toHaveLength(2);
+  expect(attempts[0]).toBe(attempts[1]);
   await expect(page.locator(".scan-result")).toContainText(
     "Ingreso autorizado",
   );
   await page.getByLabel("Escanea el QR").fill(credential);
-  await page.getByRole("button", { name: "Validar entrada" }).click();
+  await expect(page.locator(".scan-popup")).toContainText(
+    "Entrada ya utilizada",
+  );
   await expect(page.locator(".scan-result")).toContainText(
     "Entrada ya utilizada",
   );

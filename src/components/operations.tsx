@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Plus,
   Download,
@@ -1066,25 +1066,29 @@ const resultNames: Record<string, string> = {
 };
 export function Access() {
   const { data, run, busy } = useApp();
-  const [event, setEvent] = useState(data.permissions.access[0] ?? ""),
-    [device, setDevice] = useState("EDA51-01"),
+  const [device, setDevice] = useState("EDA51-01"),
     [gate, setGate] = useState("Puerta principal"),
     [credential, setCredential] = useState(""),
     [result, setResult] = useState<Row | null>(null),
-    [search, setSearch] = useState("");
+    [search, setSearch] = useState(""),
+    [popup, setPopup] = useState(false);
   const input = useRef<HTMLInputElement>(null),
+    sending = useRef(false),
     pending = useRef<{ credential: string; request_id: string } | null>(null);
   useEffect(() => {
     input.current?.focus();
-  }, [event]);
-  async function scan() {
-    if (!credential.trim() || busy) return;
-    if (!pending.current || pending.current.credential !== credential)
-      pending.current = { credential, request_id: crypto.randomUUID() };
+  }, []);
+  const scan = useCallback(async () => {
+    const value = credential.trim();
+    if (!value || busy || sending.current) return;
+    sending.current = true;
+    setPopup(false);
+    setResult(null);
+    if (!pending.current || pending.current.credential !== value)
+      pending.current = { credential: value, request_id: crypto.randomUUID() };
     const r = await run(
       {
-        action: "checkin",
-        event_id: event,
+        action: "scan_auto",
         ...pending.current,
         device_id: device,
         gate_label: gate,
@@ -1096,14 +1100,28 @@ export function Access() {
       setCredential("");
       pending.current = null;
     } else setResult({ result: "network_error" });
+    sending.current = false;
+    setPopup(true);
     input.current?.focus();
-  }
+  }, [credential, busy, run, device, gate]);
+  useEffect(() => {
+    if (!credential.trim() || busy || pending.current) return;
+    const timer = setTimeout(() => {
+      void scan();
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [credential, busy, scan]);
+  useEffect(() => {
+    if (!popup) return;
+    const timer = setTimeout(() => setPopup(false), 2500);
+    return () => clearTimeout(timer);
+  }, [popup, result]);
   const found =
     search.length > 2
       ? data.tickets
           .filter(
             (t) =>
-              t.event_id === event &&
+              data.permissions.access.includes(t.event_id) &&
               (t.visible_number.toLowerCase().includes(search.toLowerCase()) ||
                 t.security_serial.toLowerCase().includes(search.toLowerCase())),
           )
@@ -1113,30 +1131,15 @@ export function Access() {
     <>
       <Heading
         title="La puerta a una gran noche"
-        subtitle="Validación online · lector como teclado · un solo ingreso por entrada"
+        subtitle="Escanea y valida · evento identificado por el QR · un solo ingreso por entrada"
       />
       <div className="scan-panel">
         <section className="panel">
           <div className="section-stack">
-            <Field name="access-event" label="Evento activo">
-              <select
-                id="access-event"
-                value={event}
-                onChange={(e) => {
-                  setEvent(e.target.value);
-                  pending.current = null;
-                  setResult(null);
-                }}
-              >
-                {data.events
-                  .filter((e) => data.permissions.access.includes(e.id))
-                  .map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.title}
-                    </option>
-                  ))}
-              </select>
-            </Field>
+            <p className="helper">
+              El QR identifica el evento. Solo puedes autorizar entradas de los
+              eventos donde tienes permiso de acceso.
+            </p>
             <div className="form-grid">
               <Field name="device" label="Identificador del equipo">
                 <input
@@ -1168,19 +1171,30 @@ export function Access() {
                 autoComplete="off"
                 value={credential}
                 placeholder="Listo para recibir una lectura…"
-                onChange={(e) => setCredential(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setPopup(false);
+                  setResult(null);
+                  if (pending.current?.credential !== value.trim())
+                    pending.current = null;
+                  setCredential(value);
+                }}
+                readOnly={busy}
               />
               <div className="form-actions">
                 <button
                   className="btn primary"
                   style={{ width: "100%" }}
-                  disabled={busy || !event}
+                  disabled={busy || !data.permissions.access.length}
                 >
                   <ScanLine />
                   Validar entrada
                 </button>
               </div>
             </form>
+            {busy && (
+              <p role="status">Verificando entrada… espera el resultado.</p>
+            )}
             <p className="helper">
               Si la red falla, no autorices el ingreso. Un reintento de la misma
               lectura conserva su identificador para recuperar el resultado
@@ -1188,6 +1202,35 @@ export function Access() {
             </p>
           </div>
         </section>
+        {popup && result && (
+          <div
+            role="alert"
+            className={`scan-popup ${result.result === "accepted" ? "accepted" : "rejected"}`}
+          >
+            <h2>
+              {resultNames[result.result] ?? "Error de conexión o servidor"}
+            </h2>
+            {result.event_title && <p>{result.event_title}</p>}
+            {result.visible_number && (
+              <p className="code">{result.visible_number}</p>
+            )}
+            <p>
+              {result.result === "accepted"
+                ? "Permitir ingreso"
+                : "No autorices el ingreso"}
+            </p>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setPopup(false);
+                input.current?.focus();
+              }}
+            >
+              Continuar
+            </button>
+          </div>
+        )}
         {result && (
           <div
             role="status"
@@ -1201,8 +1244,9 @@ export function Access() {
               {result.visible_number ??
                 (result.result === "network_error"
                   ? "No autorices el ingreso. Recupera la conexión y reintenta."
-                  : "Verifica la entrada y el evento activo.")}
+                  : "Verifica la entrada y tus permisos de acceso.")}
             </p>
+            {result.event_title && <p>{result.event_title}</p>}
           </div>
         )}
         <section className="panel" style={{ marginTop: 22 }}>
@@ -1239,7 +1283,7 @@ export function Access() {
                   const r = await run(
                     {
                       action: "manual_checkin",
-                      event_id: event,
+                      event_id: t.event_id,
                       ticket_id: t.id,
                       request_id: crypto.randomUUID(),
                       device_id: device,

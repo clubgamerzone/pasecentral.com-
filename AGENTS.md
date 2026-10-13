@@ -757,3 +757,4 @@ El software funciona con PostgreSQL embebido persistente en desarrollo. La demo 
 - Conexión real Supabase/Wompi/Vercel, certificado TLS y ensayo multiconexión: docs/CLOUD_SETUP_2026-10-13.md.
 - Resend, DNS HostGator, SMTP Auth, claves de boletas y scheduler: docs/EMAIL_SETUP_2026-10-13.md; configuración repetible: scripts/configure-email-worker.ts.
 - Ensayo de comprador, taquilla, caja, Wompi sandbox, impresión y lector Honeywell: docs/TEST_REHEARSAL.md (2026-10-13); hardware y checkout completo siguen pendientes de ejecución.
+- Cambio autorizado por el propietario (2026-10-13): `/access` identifica evento por QR sin selector y valida automáticamente; botón manual opcional, aviso de resultado/evento, permisos por evento y sin ingreso offline. Decisión y prueba: docs/DECISIONS.md y docs/OPERATIONS.md.

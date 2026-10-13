@@ -108,6 +108,13 @@ export const commands = z.discriminatedUnion("action", [
     transaction_id: text,
   }),
   z.object({
+    action: z.literal("scan_auto"),
+    credential: z.string().trim().min(1).max(1000),
+    request_id: id,
+    device_id: text,
+    gate_label: text,
+  }),
+  z.object({
     action: z.literal("checkin"),
     event_id: id,
     credential: z.string().min(1).max(1000),

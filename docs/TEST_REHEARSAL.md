@@ -2,6 +2,8 @@
 
 Guía preparada el 2026-10-13. No registra hardware ni pagos sandbox como aprobados: esos ensayos siguen pendientes. Usar exclusivamente eventos y operaciones ficticios identificados como DEMO.
 
+Actualización de flujo (2026-10-13): `/access` ya no requiere seleccionar evento. El servidor lo identifica desde el QR y verifica asignación del operador. La lectura se valida automáticamente tras 350 ms sin cambios, con Enter o con el botón opcional. Aviso verde/rojo con resultado/evento y cierre automático en 2,5 segundos. Las indicaciones históricas siguientes de seleccionar evento o exigir Enter quedan reemplazadas por este flujo. El ensayo de «otro evento activo» se sustituye por «evento sin asignación al operador»: debe rechazar sin revelar sus datos. Wedge sigue siendo necesario para recibir texto; no se ha certificado el scanner físico.
+
 ## Preparación
 
 - Aplicación: https://pasecentral-demo.vercel.app. El administrador ya logró iniciar sesión. Hosting, Supabase y entrega de correo al propietario están documentados en CLOUD_SETUP_2026-10-13.md y EMAIL_SETUP_2026-10-13.md.
