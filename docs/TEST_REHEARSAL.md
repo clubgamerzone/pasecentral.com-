@@ -74,6 +74,12 @@ Medir desde la lectura hasta el resultado con la red y dispositivos del recinto;
 
 ## Venta, correo, impresión y caja
 
+### Nequi sandbox
+
+En modo de pruebas, introducir `3991111111` para aprobación o `3992222222` para rechazo como número de Nequi/celular en Wompi (prefijo Colombia +57 separado si el formulario lo solicita). Cualquier otro número produce ERROR según la documentación oficial, aunque sea una cuenta Nequi real. No requiere autorizar desde la app Nequi real ni debita dinero real. Si la compra anterior terminó en ERROR o venció, volver al comercio e iniciar un checkout con reserva vigente; la nueva aprobación todavía debe ser verificada por el servidor antes de emitir. Fuente: [Wompi, datos Nequi sandbox](https://docs.wompi.co/docs/colombia/datos-de-prueba-en-sandbox/#nequi).
+
+El 2026-10-13 el propietario aportó captura de «Número no válido en Sandbox» usando un número distinto de los ficticios autorizados; se confirmó la causa mediante documentación oficial. No se ejecutó una transacción nueva ni se certificó el circuito de aprobación/webhook con esta consulta. No se conservaron capturas ni datos personales en el repositorio.
+
 1. **Taquilla:** abrir caja con fondo ficticio; vender tres entradas en una orden, comprobar tres QR y números distintos, descargar boletas y verificar consumo de cupos del evento correcto. Registrar efectivo y transferencia ficticios separadamente, con su justificación de ensayo.
 2. **Online:** desde una cuenta de comprador entrar a `/events`, comprar en un evento publicado y seguir Wompi sandbox. Probar aprobación y rechazo en órdenes independientes. No usar tarjetas reales. Los datos oficiales de tarjeta sandbox incluyen `4242 4242 4242 4242` (aprobada) y `4111 1111 1111 1111` (rechazada), vencimiento futuro y CVC de tres dígitos; si aparece 3DS seguir el escenario específico del checkout de pruebas. Fuentes: [datos sandbox](https://docs.wompi.co/docs/colombia/datos-de-prueba-en-sandbox/) y [escenarios 3DS](https://docs.wompi.co/docs/colombia/transacciones-con-3d-secure-v2/).
 3. **Confirmación:** comprobar orden confirmada solo después de pago verificado, entradas en Mis entradas, correo recibido y PDF descargable. La rechazada no debe emitir entradas. El retorno de Wompi por sí solo no prueba confirmación. Dejar una reserva sin pagar y comprobar vencimiento/liberación; verificar la duración configurada antes de medirla.
