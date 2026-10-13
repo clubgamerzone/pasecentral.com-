@@ -70,3 +70,7 @@ Demo comprobada en `http://127.0.0.1:3000/login` con respuesta 200; base de trab
 ## Preparación de servicios · 2026-10-12
 
 Se agregó docs/SERVICE_SETUP.md con cuentas, variables, pasos Supabase/Wompi sandbox/Resend/hosting y datos que debe confirmar el usuario. Se consultaron fuentes oficiales vigentes. Supabase acepta clave pública publishable en la variable existente NEXT_PUBLIC_SUPABASE_ANON_KEY. Se distinguió SMTP de Auth frente a emails de boletas y la necesidad de URL pública para webhooks. No se crearon cuentas ni se configuraron credenciales: .env.local aún no existe. Cambios exclusivamente documentales; las pruebas de código anteriores siguen siendo la referencia.
+
+## Servicios conectados · 2026-10-13
+
+Ver docs/CLOUD_SETUP_2026-10-13.md. Supabase real: migraciones aplicadas, 22/22 tablas con RLS, bucket privado, administrador verificado y bootstrap. Wompi: llaves sandbox privadas guardadas localmente y consulta del comercio HTTP 200. Se añadió soporte CA TLS verificada y límite configurable de conexiones en src/lib/db.ts; ambiente staging explícito en config/state/UI. Ensayo SQL multiconexión pasó (sin sobreventa, sin ingreso doble, emisión de tres QR distintos), conservando dos eventos DEMO con ventas cerradas. Se añadió npm run test:connected para repetirlo exclusivamente en staging/sandbox. Regresión: lint, tipos, 36 pruebas, build y 5 flujos browser aprobados. Vercel autorizado y preparado, aún pendiente de deploy verificado; Resend/SMTP y hardware sin configurar. No se guardaron secretos en documentación/Git.

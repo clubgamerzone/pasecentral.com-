@@ -1,6 +1,6 @@
 import type { DB, Row } from "./db";
 import { admin, can, type Actor } from "./service";
-import { demoMode } from "./config";
+import { demoMode, appEnvironment } from "./config";
 export async function state(db: DB, a: Actor | null) {
   return db.transaction(async (tx) => {
     const all = (await tx.query("SELECT * FROM events ORDER BY starts_at"))
@@ -145,6 +145,7 @@ export async function state(db: DB, a: Actor | null) {
       : [];
     return {
       demo: demoMode(),
+      environment: appEnvironment(),
       actor: a,
       permissions: {
         admin: isAdmin,

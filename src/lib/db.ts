@@ -73,9 +73,20 @@ export async function database(): Promise<DB> {
         await seed(db);
         return db;
       }
+      const ca = process.env.DATABASE_SSL_CA?.replaceAll("\\n", "\n");
+      const url = new URL(required("DATABASE_URL"));
+      // pg's URL SSL options override its SSL object, including a supplied CA.
+      if (ca)
+        for (const key of ["sslmode", "sslcert", "sslkey", "sslrootcert"])
+          url.searchParams.delete(key);
       const pool = new Pool({
-        connectionString: required("DATABASE_URL"),
-        max: 10,
+        connectionString: url.toString(),
+        ...(ca ? { ssl: { ca, rejectUnauthorized: true } } : {}),
+        max: Math.min(
+          20,
+          Math.max(1, Number(process.env.DATABASE_POOL_SIZE ?? 5)),
+        ),
+        idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 10000,
       });
       return {

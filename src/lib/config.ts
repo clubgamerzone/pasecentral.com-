@@ -15,3 +15,10 @@ export function required(name: string) {
 export function appUrl() {
   return process.env.APP_URL ?? "http://127.0.0.1:3000";
 }
+export function appEnvironment(): "demo" | "staging" | "production" {
+  if (demoMode()) return "demo";
+  return process.env.APP_ENVIRONMENT === "production" &&
+    process.env.WOMPI_ENV === "production"
+    ? "production"
+    : "staging";
+}

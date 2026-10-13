@@ -14,7 +14,8 @@
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "bootstrap": "tsx --env-file-if-exists=.env.local scripts/bootstrap.ts",
     "worker": "tsx --env-file-if-exists=.env.local scripts/delivery.ts",
-    "format": "prettier --write src scripts tests docs *.json *.ts *.mjs"
+    "format": "prettier --write src scripts tests docs *.json *.ts *.mjs",
+    "test:connected": "tsx --env-file-if-exists=.env.local scripts/verify-connected.ts"
   },
   "engines": {
     "node": ">=22.14.0"

@@ -446,7 +446,11 @@ export function App() {
               </b>
             </span>
             <div className="top-right">
-              {data.demo && <span className="demo-pill">ENTORNO DEMO</span>}
+              {data.environment !== "production" && (
+                <span className="demo-pill">
+                  {data.demo ? "ENTORNO DEMO" : "PRUEBAS CONECTADAS"}
+                </span>
+              )}
               <span className="status">
                 <span className="status-dot" />
                 Datos del servidor
@@ -791,10 +795,10 @@ export function Dashboard() {
           <Ticket />
         </div>
       </div>
-      {data.demo && (
+      {data.environment !== "production" && (
         <div className="notice">
-          Indicadores de datos ficticios locales. No representan ventas reales
-          ni dinero recibido en banco.
+          Indicadores del entorno de pruebas. No representan ventas reales ni
+          dinero recibido en banco.
         </div>
       )}
       <div className="filterbar">
