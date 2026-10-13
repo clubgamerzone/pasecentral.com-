@@ -14,6 +14,27 @@ const items = z
   .max(10);
 export const commands = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("update_event"),
+    event_id: id,
+    title: text,
+    description: z.string().max(5000),
+    venue_name: text,
+    address: text,
+    starts_at: date,
+    ends_at: date,
+    admission_starts_at: date,
+    admission_ends_at: date,
+    capacity: z.coerce.number().int().min(1).max(1000000),
+  }),
+  z.object({
+    action: z.literal("update_type"),
+    event_id: id,
+    ticket_type_id: id,
+    name: text,
+    capacity: z.coerce.number().int().min(0).max(1000000),
+  }),
+  z.object({ action: z.literal("event_cover"), event_id: id, image_id: id }),
+  z.object({
     action: z.literal("profile_update"),
     name: z.string().trim().min(1).max(150),
     phone: z.string().trim().max(30).default(""),

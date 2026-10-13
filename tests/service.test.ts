@@ -14,6 +14,7 @@ import { execute, one, ticketDocument, settle } from "../src/lib/service";
 import { state } from "../src/lib/state";
 import { hash, decrypt } from "../src/lib/crypto";
 import { normalizeAvatar } from "../src/lib/avatar";
+import { normalizeEventImage } from "../src/lib/event-images";
 import sharp from "sharp";
 import { csv } from "../src/lib/csv";
 import { verifyWebhook } from "../src/lib/wompi";
@@ -96,6 +97,209 @@ async function scan(
   });
 }
 describe("Inventario, precios y emisión transaccional", () => {
+  async function editEvent(
+    changes: Record<string, unknown> = {},
+    actor = admin,
+  ) {
+    const e = await one(db, "SELECT * FROM events WHERE id=$1", [e1]);
+    const fields = [
+      "title",
+      "description",
+      "venue_name",
+      "address",
+      "capacity",
+      "starts_at",
+      "ends_at",
+      "admission_starts_at",
+      "admission_ends_at",
+    ];
+    const values = Object.fromEntries(
+      fields.map((k) => [k, e[k] instanceof Date ? e[k].toISOString() : e[k]]),
+    );
+    return execute(db, actor, {
+      action: "update_event",
+      event_id: e1,
+      ...values,
+      ...changes,
+    });
+  }
+  it("localidad agotada aumenta cupo, conserva venta histórica y no reduce bajo vendidos/reservados", async () => {
+    const id = await type();
+    await execute(db, admin, {
+      action: "update_type",
+      event_id: e1,
+      ticket_type_id: id,
+      name: "General",
+      capacity: 2,
+    });
+    await sell(1);
+    const reservation = await reserve(1);
+    await expect(
+      execute(db, admin, {
+        action: "update_type",
+        event_id: e1,
+        ticket_type_id: id,
+        name: "Otro",
+        capacity: 1,
+      }),
+    ).rejects.toThrow("comprometidas");
+    await execute(db, admin, {
+      action: "update_type",
+      event_id: e1,
+      ticket_type_id: id,
+      name: "General ampliada",
+      capacity: 4,
+    });
+    expect(
+      (await state(db, null)).types.find((t) => t.id === id),
+    ).toMatchObject({ capacity: 4, committed: 2 });
+    expect(
+      (
+        await one(
+          db,
+          "SELECT type_name FROM order_items WHERE ticket_type_id=$1 LIMIT 1",
+          [id],
+        )
+      ).type_name,
+    ).toBe("General");
+    await db.query(
+      "UPDATE orders SET reservation_expires_at=now()-interval '1 minute' WHERE id=$1",
+      [reservation.order_id],
+    );
+    await execute(db, admin, {
+      action: "update_type",
+      event_id: e1,
+      ticket_type_id: id,
+      name: "General ampliada",
+      capacity: 1,
+    });
+    expect(
+      (
+        await one(db, "SELECT status FROM orders WHERE id=$1", [
+          reservation.order_id,
+        ])
+      ).status,
+    ).toBe("expired");
+  });
+  it("reducción concurrente y venta mantienen el cupo", async () => {
+    const id = await type();
+    await sell(1);
+    const results = await Promise.allSettled([
+      execute(db, admin, {
+        action: "update_type",
+        event_id: e1,
+        ticket_type_id: id,
+        name: "General",
+        capacity: 1,
+      }),
+      sell(1),
+    ]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const t = (await state(db, null)).types.find((t) => t.id === id)!;
+    expect(t.committed).toBeLessThanOrEqual(t.capacity);
+  });
+  it("edita descripción/fechas y aforo sin cambiar enlace ni otro evento; rechaza aforo inválido", async () => {
+    await editEvent({
+      title: "Evento ampliado",
+      description: "Línea uno\nLínea dos",
+      capacity: 250,
+    });
+    expect(
+      await one(db, "SELECT title,capacity FROM events WHERE id=$1", [e1]),
+    ).toMatchObject({ title: "Evento ampliado", capacity: 250 });
+    expect(
+      (await one(db, "SELECT title FROM events WHERE id=$1", [e2])).title,
+    ).not.toBe("Evento ampliado");
+    await expect(editEvent({ capacity: 1 })).rejects.toThrow("localidades");
+    await expect(
+      editEvent({ ends_at: "2000-01-01T00:00:00Z" }),
+    ).rejects.toThrow("posteriores");
+  });
+  it("comprador y taquilla no editan eventos/cupos; tipo ajeno rechazado; cupo cero permitido sin ventas", async () => {
+    await expect(editEvent({}, customer)).rejects.toThrow("permiso");
+    await expect(editEvent({}, box)).rejects.toThrow("permiso");
+    const id = await type();
+    await expect(
+      execute(db, box, {
+        action: "update_type",
+        event_id: e1,
+        ticket_type_id: id,
+        name: "General",
+        capacity: 1,
+      }),
+    ).rejects.toThrow("permiso");
+    await expect(
+      execute(db, admin, {
+        action: "update_type",
+        event_id: e1,
+        ticket_type_id: await type(e2),
+        name: "General",
+        capacity: 1,
+      }),
+    ).rejects.toThrow("no encontrado");
+    await execute(db, admin, {
+      action: "update_type",
+      event_id: e1,
+      ticket_type_id: id,
+      name: "General",
+      capacity: 0,
+    });
+    await expect(reserve(1)).rejects.toThrow();
+  });
+  it("imágenes de borrador protegidas por RLS y portada restringida al evento", async () => {
+    await db.query("UPDATE events SET status='draft' WHERE id=$1", [e2]);
+    const image = await one(
+      db,
+      "INSERT INTO event_images(event_id,path,created_by) VALUES($1,$2,$3) RETURNING id",
+      [e2, `${e2}/test.webp`, admin.id],
+    );
+    await expect(
+      execute(db, admin, {
+        action: "event_cover",
+        event_id: e1,
+        image_id: image.id,
+      }),
+    ).rejects.toThrow("no encontrado");
+    await execute(db, admin, {
+      action: "event_cover",
+      event_id: e2,
+      image_id: image.id,
+    });
+    expect((await state(db, null)).events.some((e) => e.id === e2)).toBe(false);
+    await db.transaction(async (tx) => {
+      await tx.query("SET LOCAL ROLE anon");
+      expect((await tx.query("SELECT * FROM event_images")).rows).toHaveLength(
+        0,
+      );
+    });
+    await db.transaction(async (tx) => {
+      await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [
+        customer.id,
+      ]);
+      await tx.query("SET LOCAL ROLE authenticated");
+      await expect(
+        tx.query(
+          "INSERT INTO event_images(event_id,path,created_by) VALUES($1,'bad',$2)",
+          [e1, customer.id],
+        ),
+      ).rejects.toThrow();
+    });
+  });
+  it("procesa foto sin deformarla y bloquea formatos inseguros", async () => {
+    const png = await sharp({
+      create: { width: 2400, height: 1200, channels: 3, background: "#315eff" },
+    })
+      .png()
+      .toBuffer();
+    const image = await normalizeEventImage(png),
+      meta = await sharp(image).metadata();
+    expect(meta).toMatchObject({ format: "webp", width: 2000, height: 1000 });
+    await expect(
+      normalizeEventImage(
+        Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+      ),
+    ).rejects.toThrow("SVG");
+  });
   it("perfil cambia solo su propietario y no concede permisos", async () => {
     await execute(db, customer, {
       action: "profile_update",

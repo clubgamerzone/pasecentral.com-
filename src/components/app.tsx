@@ -700,12 +700,20 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
           return (
             <article className="event-card" key={e.id}>
               <a href={admin ? `/admin/events/${e.id}` : `/events/${e.slug}`}>
-                <div className={`poster ${i % 2 ? "electronic" : ""}`}>
-                  <small>PASE CENTRAL PRESENTA</small>
-                  <div className="poster-title">
-                    {e.title.replace(" · DEMO", "")}
+                {e.cover_url ? (
+                  <img
+                    className="event-card-image"
+                    src={e.cover_url}
+                    alt={`Portada de ${e.title}`}
+                  />
+                ) : (
+                  <div className={`poster ${i % 2 ? "electronic" : ""}`}>
+                    <small>PASE CENTRAL PRESENTA</small>
+                    <div className="poster-title">
+                      {e.title.replace(" · DEMO", "")}
+                    </div>
                   </div>
-                </div>
+                )}
               </a>
               <div className="card-body">
                 <div
@@ -963,7 +971,21 @@ export function Dashboard() {
           {events.slice(0, 3).map((e, i) => (
             <a href={`/admin/events/${e.id}`} className="event-row" key={e.id}>
               <div className={`event-cover ${i % 2 ? "electronic" : ""}`}>
-                <Music2 />
+                {e.cover_url ? (
+                  <img
+                    src={e.cover_url}
+                    alt={`Portada de ${e.title}`}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                      position: "relative",
+                      zIndex: 1,
+                    }}
+                  />
+                ) : (
+                  <Music2 />
+                )}
               </div>
               <div className="event-copy">
                 <h3>{e.title}</h3>

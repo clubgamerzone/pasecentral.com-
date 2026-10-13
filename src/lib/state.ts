@@ -21,6 +21,23 @@ export async function state(db: DB, a: Actor | null) {
       (e) => e.status === "published" || visible.includes(e.id),
     );
     const ids = events.map((e) => e.id);
+    const images = (
+      await tx.query(
+        "SELECT id,event_id,path FROM event_images WHERE event_id=ANY($1::uuid[]) ORDER BY created_at,id",
+        [ids],
+      )
+    ).rows;
+    for (const e of events) {
+      e.images = images
+        .filter((i) => i.event_id === e.id)
+        .map((i) => ({
+          id: i.id,
+          url: `/api/event-images/${i.id}`,
+          cover: i.path === e.cover_path,
+        }));
+      e.cover_url = e.images.find((i: Row) => i.cover)?.url ?? null;
+      delete e.cover_path;
+    }
     const types = (
       await tx.query(
         `SELECT t.*,coalesce((SELECT sum(i.quantity) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.ticket_type_id=t.id AND (o.status IN ('confirmed','partially_refunded','refunded') OR (o.status='pending_payment' AND o.reservation_expires_at>now()))),0)::int AS committed FROM ticket_types t WHERE event_id=ANY($1::uuid[])`,

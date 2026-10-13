@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
+import { EventDetails, EditTicketType } from "./event-editing";
 import {
   Plus,
   Download,
@@ -162,29 +163,7 @@ export function EventEditor({
       </nav>
       {page === "settings" ? (
         <div className="split">
-          <section className="panel">
-            <h2>Detalles del evento</h2>
-            <p style={{ margin: "20px 0" }}>
-              {e.description || "Sin descripción"}
-            </p>
-            {[
-              ["Aforo total", e.capacity],
-              ["Dirección", e.address],
-              ["Inicio", when(e.starts_at)],
-              ["Fin", when(e.ends_at)],
-              ["Apertura de puertas", when(e.admission_starts_at)],
-              ["Cierre de puertas", when(e.admission_ends_at)],
-            ].map(([label, value]) => (
-              <div className="summary-line" key={label}>
-                <span>{label}</span>
-                <b>{value}</b>
-              </div>
-            ))}
-            <div className="notice" style={{ marginTop: 22 }}>
-              Los cupos y precios pertenecen a este evento. Cambiar una fase no
-              modifica las órdenes anteriores.
-            </div>
-          </section>
+          <EventDetails event={e} />
           <section className="panel">
             <h2>Estado y publicación</h2>
             <p style={{ margin: "15px 0 25px" }}>
@@ -302,6 +281,7 @@ export function EventEditor({
                     <th>Cupo</th>
                     <th>Comprometidas</th>
                     <th>Disponibles</th>
+                    <th>Editar</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -311,6 +291,9 @@ export function EventEditor({
                       <td>{t.capacity}</td>
                       <td>{t.committed}</td>
                       <td>{Math.max(0, t.capacity - t.committed)}</td>
+                      <td>
+                        <EditTicketType type={t} eventId={eventId} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

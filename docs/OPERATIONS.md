@@ -88,3 +88,6 @@ Los enlaces del dashboard utilizan el flujo implícito y llegan al Site URL con 
 ## Mi perfil e invitaciones
 
 Menú Mi perfil → `/account/profile`: nombre, teléfono, biografía, foto privada y consulta de permisos para cualquier rol. Equipo y usuarios → `/admin/users`: administrador global invita por correo con rol y varios eventos, consulta estado y puede reenviar/revocar invitaciones pendientes. El invitado crea/inicia su propia cuenta del correo invitado, confirma correo y acepta; no enviar contraseñas al administrador. Guía técnica/operativa y diferencia entre organizador por evento/organización: PROFILE_TEAM_SETUP.md.
+# Edición de eventos y contenido
+
+Consultar [EVENT_EDITING.md](EVENT_EDITING.md) para editar datos/aforo desde Eventos → Administrar, modificar localidades agotadas y cargar portada/galería. Requiere rol gestor del evento; cupos no pueden quedar bajo ventas/reservas. PDF ya enviados no se actualizan al cambiar fecha/lugar y no se envía aviso masivo automático.

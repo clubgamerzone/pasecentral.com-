@@ -16,6 +16,7 @@ import {
 import { useApp, Heading, Field, Empty, Badge, money, when } from "./app";
 import { formValues } from "./operations";
 import type { Row } from "@/lib/db";
+import { EventGallery } from "./event-editing";
 export function EventPurchase({ slug }: { slug: string }) {
   const { data, run, busy, navigate } = useApp();
   const [quantities, setQuantities] = useState<Record<string, number>>({}),
@@ -50,12 +51,18 @@ export function EventPurchase({ slug }: { slug: string }) {
       </div>
       <div className="split event-detail">
         <section>
-          <div
-            className={`poster ${slug.includes("electro") ? "electronic" : ""}`}
-          >
-            <small>PASE CENTRAL PRESENTA</small>
-            <div className="poster-title">{e.title.replace(" · DEMO", "")}</div>
-          </div>
+          {e.cover_url ? (
+            <EventGallery event={e} />
+          ) : (
+            <div
+              className={`poster ${slug.includes("electro") ? "electronic" : ""}`}
+            >
+              <small>PASE CENTRAL PRESENTA</small>
+              <div className="poster-title">
+                {e.title.replace(" · DEMO", "")}
+              </div>
+            </div>
+          )}
           <section className="panel">
             <h1>{e.title}</h1>
             <div className="card-meta">
@@ -66,7 +73,15 @@ export function EventPurchase({ slug }: { slug: string }) {
               <MapPin />
               {e.venue_name} · {e.address}
             </div>
-            <p style={{ marginTop: 23 }}>{e.description}</p>
+            <p
+              style={{
+                marginTop: 23,
+                whiteSpace: "pre-wrap",
+                overflowWrap: "anywhere",
+              }}
+            >
+              {e.description}
+            </p>
             <div className="notice" style={{ marginTop: 22 }}>
               Cada entrada tiene un QR único y permite un solo ingreso. No
               compartas el QR públicamente.

@@ -19,6 +19,123 @@ async function login(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.locator(".nav-foot")).toContainText(name);
 }
+test("edita evento, localidad agotada, portada y galería con imágenes privadas en borrador", async ({
+  page,
+  browser,
+}) => {
+  await login(page, "Administración demo");
+  await page.goto("/admin/events/new");
+  const slug = `galeria-prueba-${Date.now()}`;
+  await page.getByLabel("Nombre del evento").fill("Galería ficticia · DEMO");
+  await page.getByLabel("Dirección corta").fill(slug);
+  await page.getByLabel("Aforo total").fill("20");
+  await page.getByLabel("Nombre del recinto").fill("Recinto de prueba");
+  await page
+    .getByLabel("Dirección", { exact: true })
+    .fill("Dirección ficticia");
+  const local = (ms: number) =>
+    new Date(ms - 5 * 3600000).toISOString().slice(0, 16);
+  for (const label of ["Inicio del evento", "Apertura de puertas"])
+    await page.getByLabel(label).fill(local(Date.now()));
+  for (const label of ["Fin del evento", "Cierre de puertas"])
+    await page.getByLabel(label).fill(local(Date.now() + 86400000));
+  await page.getByRole("button", { name: "Crear borrador" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Editar evento" }),
+  ).toBeVisible();
+  const url = page.url(),
+    id = url.split("/").pop()!;
+  await page.getByLabel("Nombre del evento").fill("Evento editado · DEMO");
+  await page
+    .getByLabel("Descripción del evento")
+    .fill("Conoce el lugar.\nInformación adicional para compradores.");
+  await page
+    .getByRole("button", { name: "Guardar cambios del evento" })
+    .click();
+  await expect(page.locator("h1")).toHaveText("Evento editado · DEMO");
+  const make = async (background: string) =>
+    sharp({ create: { width: 640, height: 360, channels: 3, background } })
+      .png()
+      .toBuffer();
+  await page.getByLabel("Agregar imágenes del evento").setInputFiles([
+    { name: "uno.png", mimeType: "image/png", buffer: await make("#149ea0") },
+    { name: "dos.png", mimeType: "image/png", buffer: await make("#da7635") },
+  ]);
+  await expect(
+    page.getByRole("button", { name: "Usar de portada" }),
+  ).toHaveCount(1);
+  const imageUrl = await page
+    .locator(".event-image-grid img")
+    .first()
+    .getAttribute("src");
+  const anonymous = await browser.newContext();
+  expect(
+    (await anonymous.request.get(`http://127.0.0.1:3100${imageUrl}`)).status(),
+  ).toBe(404);
+  await page.getByRole("button", { name: "Usar de portada" }).click();
+  await expect(page.locator(".toast")).toContainText("Portada actualizada");
+  await page.getByRole("link", { name: "Localidades y precios" }).click();
+  await page.getByLabel("Nueva localidad").fill("General");
+  await page.getByLabel("Cupo de la localidad").fill("3");
+  await page.getByRole("button", { name: "Agregar localidad" }).click();
+  await page
+    .getByRole("button", { name: "Editar General", exact: true })
+    .click();
+  await page.getByLabel("Cupo total de General").fill("0");
+  await page.getByRole("button", { name: "Guardar localidad" }).click();
+  await expect(page.locator("table").first()).toContainText("General");
+  await page
+    .getByRole("button", { name: "Editar General", exact: true })
+    .click();
+  await expect(page.getByLabel("Cupo total de General")).toHaveValue("0");
+  await page.getByLabel("Cupo total de General").fill("5");
+  await page.getByRole("button", { name: "Guardar localidad" }).click();
+  for (const channel of ["web", "box_office"]) {
+    await page.getByLabel("Canal", { exact: true }).selectOption(channel);
+    await page.getByLabel("Nombre de la fase").fill(`Precio ${channel}`);
+    await page.getByLabel("Precio en COP").fill("10000");
+    await page
+      .getByLabel("Inicio · Bogotá", { exact: true })
+      .fill(local(Date.now() - 3600000));
+    await page
+      .getByLabel("Fin · Bogotá", { exact: true })
+      .fill(local(Date.now() + 86400000));
+    await page.getByRole("button", { name: "Agregar fase" }).click();
+    await expect(page.locator("table").nth(1)).toContainText(`Precio ${channel}`);
+  }
+  await page.goto(url);
+  await page.getByRole("button", { name: "Publicar evento" }).click();
+  await expect(page.locator(".toast")).toContainText("publicado");
+  const publicPage = await anonymous.newPage();
+  await publicPage.goto(`http://127.0.0.1:3100/events/${slug}`);
+  await expect(
+    publicPage.getByText("Información adicional para compradores.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await expect(publicPage.locator(".event-main-image")).toBeVisible();
+  expect(
+    (await anonymous.request.get(`http://127.0.0.1:3100${imageUrl}`)).status(),
+  ).toBe(200);
+  const initial = await publicPage
+    .locator(".event-main-image")
+    .getAttribute("src");
+  await publicPage
+    .getByRole("button", { name: "Ver imagen 1 del evento" })
+    .click();
+  await expect(publicPage.locator(".event-main-image")).not.toHaveAttribute(
+    "src",
+    initial!,
+  );
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Eliminar imagen 2" }).click();
+  await expect(page.locator(".event-image-grid img")).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Portada actual" }),
+  ).toBeVisible();
+  expect(id).toMatch(/^[a-f0-9-]{36}$/);
+  await anonymous.close();
+});
 test("organizador crea dos fiestas y configura localidad, fases y personal", async ({
   page,
 }) => {

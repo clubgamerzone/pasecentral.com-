@@ -583,6 +583,87 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         });
         return {};
       }
+      case "update_event": {
+        await permit(tx, a, c.event_id, "manage");
+        const e = await lockEvent(tx, c.event_id);
+        await expire(tx, e.id);
+        if (
+          new Date(c.ends_at) <= new Date(c.starts_at) ||
+          new Date(c.admission_ends_at) <= new Date(c.admission_starts_at)
+        )
+          fail(
+            "El fin del evento y el cierre de puertas deben ser posteriores a sus inicios",
+          );
+        if (c.capacity < (await stock(tx, e.id)))
+          fail("El aforo no puede ser menor que las entradas comprometidas");
+        const largest = await one(
+          tx,
+          "SELECT coalesce(max(capacity),0)::int AS capacity FROM ticket_types WHERE event_id=$1",
+          [e.id],
+        );
+        if (c.capacity < largest.capacity)
+          fail(
+            "Reduce primero el cupo de las localidades que superan el nuevo aforo",
+          );
+        const { action: _action, event_id: _id, ...data } = c;
+        void _action;
+        void _id;
+        const keys = Object.keys(data);
+        await tx.query(
+          `UPDATE events SET ${keys.map((k, i) => `${k}=$${i + 2}`).join(",")} WHERE id=$1`,
+          [e.id, ...Object.values(data)],
+        );
+        await audit(tx, a, "event_updated", "event", e.id, {
+          fields: keys,
+          capacity_before: e.capacity,
+          capacity_after: c.capacity,
+        });
+        return {};
+      }
+      case "update_type": {
+        await permit(tx, a, c.event_id, "manage");
+        const e = await lockEvent(tx, c.event_id);
+        await expire(tx, e.id);
+        const t = await one(
+          tx,
+          "SELECT * FROM ticket_types WHERE id=$1 AND event_id=$2",
+          [c.ticket_type_id, e.id],
+        );
+        if (c.capacity > e.capacity)
+          fail(
+            "Cupo de localidad mayor al aforo; aumenta primero el aforo del evento",
+          );
+        if (c.capacity < (await stock(tx, e.id, t.id)))
+          fail(
+            "El cupo no puede ser menor que las entradas comprometidas de esta localidad",
+          );
+        await tx.query(
+          "UPDATE ticket_types SET name=$2,capacity=$3 WHERE id=$1",
+          [t.id, c.name, c.capacity],
+        );
+        await audit(tx, a, "type_updated", "ticket_type", t.id, {
+          capacity_before: t.capacity,
+          capacity_after: c.capacity,
+        });
+        return {};
+      }
+      case "event_cover": {
+        await permit(tx, a, c.event_id, "manage");
+        await lockEvent(tx, c.event_id);
+        const image = await one(
+          tx,
+          "SELECT path FROM event_images WHERE id=$1 AND event_id=$2",
+          [c.image_id, c.event_id],
+        );
+        await tx.query("UPDATE events SET cover_path=$2 WHERE id=$1", [
+          c.event_id,
+          image.path,
+        ]);
+        await audit(tx, a, "event_cover_updated", "event", c.event_id, {
+          image_id: c.image_id,
+        });
+        return {};
+      }
       case "add_type": {
         await permit(tx, a, c.event_id, "manage");
         const e = await lockEvent(tx, c.event_id);
