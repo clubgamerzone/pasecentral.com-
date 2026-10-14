@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
+import { TeamEditor } from "./team-editor";
 import { EventDetails, EditTicketType } from "./event-editing";
 import { AuditGuide } from "./audit-guide";
 import {
@@ -464,6 +465,7 @@ export function UserManagement({ eventId }: { eventId?: string }) {
         />
       )}
       <InviteTeam eventId={eventId} />
+      <TeamEditor eventId={eventId} />
       <section className="panel">
         <h2>Asignar personal</h2>
         <p className="compact" style={{ margin: "12px 0 23px" }}>

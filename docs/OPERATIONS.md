@@ -110,3 +110,7 @@ Mi perfil incluye género/edad y Eliminar cuenta (confirmación/contraseña; pé
 ## Gráficos e indicadores visuales
 
 Vista general y Reportes muestran dona de canal/género/medios, línea diaria y barras de eventos/fases/localidades/edad/años. Toca leyenda o punto para consultar; usa «Ver las N categorías» para expandir barras, «Ver tabla de datos» para detalle y botón CSV para exportar. Cuatro tarjetas principales y botón para ocho indicadores adicionales; alertas permanecen visibles. Verde favorable, amarillo pendiente/atención, rojo incidencia/saldo negativo, gris informativo. Género/edad tienen colores de distinción sin valoración. Guía y umbrales: [ANALYTICS_VISUALS.md](ANALYTICS_VISUALS.md).
+
+## Editar personal y combinar caja/acceso
+
+Equipo y usuarios → Invitar: rol Cajero / taquilla ofrece **Incluir acceso**. Usuarios y permisos → **Editar permisos de [persona]**: activar/desactivar caja, lector o administrador por evento. Global también cambia nombre/rol global; gestor de evento solo sus asignaciones. Los roles generales heredados se advierten, no desaparecen al desmarcar evento. No se elimina cuenta o historial. Guía de alcance, migración 009, pruebas y servicios: [TEAM_PERMISSIONS.md](TEAM_PERMISSIONS.md).

@@ -98,3 +98,7 @@ Apertura de puertas en fecha inicial con campo hora; cierre permite día siguien
 ## Análisis visual — 2026-10-14
 
 Gráficos React/SVG/CSS propios sobre los agregados autorizados existentes, sin biblioteca/proveedor de tracking adicional. Tortas para distribución, barras para comparar y línea con eje temporal real; tablas/CSV conservados. Verde/amarillo/rojo se interpretan según significado, no signo numérico de forma indiscriminada: incidencias positivas son rojas, reservas pendientes amarillas y faltantes negativos rojos. Categorías demográficas distinguidas sin juicio ni inferencia. Cero/sin base neutral; cupo bajo tiene umbral explícito 10% del total filtrado; no inventar metas o datos. Guía: ANALYTICS_VISUALS.md.
+
+## Gestión ampliada de equipo — 2026-10-14
+
+Casilla Incluir acceso persiste intención, acepta dos roles existentes box_office/access_staff y no crea un rol combinado especial. Edición por evento reemplaza asignaciones directas atómicamente, conserva otras y alerta sobre herencia global/organización. Gestores de evento pueden invitar/editar dentro de todos sus eventos autorizados; no editar nombres/globales ni administrador global. Solo global edita nombre/rol global, sin retirar último admin. Invitación aceptada nunca se reaplica después de retirar roles; creador se revalida en worker/aceptación. RLS restringe invitaciones al alcance completo y helper privilegiado no es ejecutable por clientes. Guía TEAM_PERMISSIONS.md; migración 009 aditiva, ninguna asignación existente modificada al desplegar.

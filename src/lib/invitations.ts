@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { DB, Tx, Row } from "./db";
-import { admin, audit, fail, one, type Actor } from "./service";
+import { admin, audit, fail, one, permit, type Actor } from "./service";
 import type { Command } from "./validation";
 import { token, hash, encrypt, decrypt } from "./crypto";
 import { appUrl, demoMode, required } from "./config";
@@ -23,11 +23,12 @@ function emailPayload(
   role: string,
   events: Row[],
   credential: string,
+  includeAccess = false,
 ) {
   const link = `${appUrl()}/invite#${credential}`;
   return {
     subject: "Invitación a Pase Central",
-    text: `Hola ${name}.\nTe invitaron al equipo como ${labels[role]}.\n${events.length ? `Eventos: ${events.map((e) => e.title).join(", ")}` : "Acceso administrativo a toda la plataforma."}\nAbre ${link}\nCrea o inicia sesión con el mismo correo al que llegó esta invitación y confirma tu correo. La invitación vence en siete días; no la compartas. No necesitas enviar tu contraseña al administrador.`,
+    text: `Hola ${name}.\nTe invitaron al equipo como ${labels[role]}${includeAccess ? " con control de acceso y lector QR" : ""}.\n${events.length ? `Eventos: ${events.map((e) => e.title).join(", ")}` : "Acceso administrativo a toda la plataforma."}\nAbre ${link}\nCrea o inicia sesión con el mismo correo al que llegó esta invitación y confirma tu correo. La invitación vence en siete días; no la compartas. No necesitas enviar tu contraseña al administrador.`,
   };
 }
 export async function invitationCommand(
@@ -36,6 +37,7 @@ export async function invitationCommand(
   c: InvitationCommand,
 ): Promise<Row> {
   if (c.action === "invite_accept") {
+    await tx.query("LOCK TABLE platform_admins IN SHARE ROW EXCLUSIVE MODE");
     const i = await one(
       tx,
       "SELECT * FROM team_invitations WHERE token_hash=$1 FOR UPDATE",
@@ -55,8 +57,6 @@ export async function invitationCommand(
       new Date(i.expires_at).getTime() <= Date.now()
     )
       fail("La invitación no está vigente. Solicita una nueva.", 409);
-    if (!(await admin(tx, { id: i.created_by, name: "" })))
-      fail("La invitación ya no está autorizada", 403);
     const events = (
       await tx.query(
         "SELECT id FROM events WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",
@@ -65,6 +65,16 @@ export async function invitationCommand(
     ).rows;
     if (events.length !== i.event_ids.length)
       fail("Los eventos de la invitación ya no están disponibles", 409);
+    if (
+      !(
+        await one(
+          tx,
+          "SELECT app_private.inviter_authorized($1,$2,$3) AS allowed",
+          [i.created_by, i.event_ids, i.role],
+        )
+      ).allowed
+    )
+      fail("La invitación ya no está autorizada", 403);
     if (i.role === "platform_admin")
       await tx.query(
         "INSERT INTO platform_admins(user_id) VALUES($1) ON CONFLICT DO NOTHING",
@@ -72,10 +82,13 @@ export async function invitationCommand(
       );
     else
       for (const e of events)
-        await tx.query(
-          "INSERT INTO event_staff(event_id,user_id,role,active) VALUES($1,$2,$3,true) ON CONFLICT(event_id,user_id,role) DO UPDATE SET active=true",
-          [e.id, a.id, i.role],
-        );
+        for (const role of i.include_access
+          ? [i.role, "access_staff"]
+          : [i.role])
+          await tx.query(
+            "INSERT INTO event_staff(event_id,user_id,role,active) VALUES($1,$2,$3,true) ON CONFLICT(event_id,user_id,role) DO UPDATE SET active=true",
+            [e.id, a.id, role],
+          );
     await tx.query(
       "UPDATE team_invitations SET status='accepted',accepted_by=$2,accepted_at=now() WHERE id=$1",
       [i.id, a.id],
@@ -83,13 +96,17 @@ export async function invitationCommand(
     await audit(tx, a, "invitation_accepted", "invitation", i.id, {
       role: i.role,
       event_ids: i.event_ids,
+      include_access: i.include_access,
     });
     return { accepted: true };
   }
-  if (!(await admin(tx, a)))
-    fail("Solo el administrador global puede invitar", 403);
+  const global = await admin(tx, a);
   if (c.action === "invite_create") {
     const ids = [...new Set(c.event_ids)];
+    if (c.include_access && c.role !== "box_office")
+      fail("Incluir acceso solo aplica a cajero / taquilla");
+    if (c.role === "platform_admin" && !global)
+      fail("Solo administrador global puede invitar administradores", 403);
     if (c.role === "platform_admin" ? ids.length > 0 : ids.length === 0)
       fail(
         "Selecciona eventos para el rol operativo; administrador global no lleva asignación de eventos",
@@ -101,6 +118,7 @@ export async function invitationCommand(
       )
     ).rows;
     if (events.length !== ids.length) fail("Uno de los eventos no existe");
+    for (const event of events) await permit(tx, a, event.id, "manage");
     const email = c.email.toLowerCase();
     await tx.query(
       "UPDATE team_invitations SET status='expired' WHERE email=$1 AND status='pending' AND expires_at<=now()",
@@ -121,7 +139,7 @@ export async function invitationCommand(
     const credential = token(),
       id = randomUUID();
     await tx.query(
-      "INSERT INTO team_invitations(id,email,name,role,event_ids,token_hash,token_encrypted,created_by,email_payload_encrypted) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+      "INSERT INTO team_invitations(id,email,name,role,event_ids,token_hash,token_encrypted,created_by,email_payload_encrypted,include_access) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
       [
         id,
         email,
@@ -132,13 +150,17 @@ export async function invitationCommand(
         encrypt(credential),
         a.id,
         encrypt(
-          JSON.stringify(emailPayload(c.name, c.role, events, credential)),
+          JSON.stringify(
+            emailPayload(c.name, c.role, events, credential, c.include_access),
+          ),
         ),
+        c.include_access,
       ],
     );
     await audit(tx, a, "invitation_created", "invitation", id, {
       role: c.role,
       event_ids: ids,
+      include_access: c.include_access,
     });
     return { invitation_id: id };
   }
@@ -147,6 +169,11 @@ export async function invitationCommand(
     "SELECT * FROM team_invitations WHERE id=$1 FOR UPDATE",
     [c.invitation_id],
   );
+  if (!global) {
+    if (i.role === "platform_admin" || !i.event_ids.length)
+      fail("Solo administrador global", 403);
+    for (const eventId of i.event_ids) await permit(tx, a, eventId, "manage");
+  }
   if (i.status !== "pending") fail("La invitación ya no está pendiente", 409);
   if (c.action === "invite_revoke")
     await tx.query("UPDATE team_invitations SET status='revoked' WHERE id=$1", [
@@ -169,7 +196,7 @@ export async function deliverInvitations(db: DB) {
     const i = await db.transaction(async (tx) => {
       const row = (
         await tx.query(
-          "SELECT * FROM team_invitations WHERE status='pending' AND expires_at>now() AND EXISTS(SELECT 1 FROM platform_admins a WHERE a.user_id=created_by) AND ((email_status IN ('pending','failed') AND next_attempt_at<=now() AND email_attempts<6) OR (email_status='processing' AND locked_at<now()-interval '10 minutes')) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
+          "SELECT * FROM team_invitations WHERE status='pending' AND expires_at>now() AND app_private.inviter_authorized(created_by,event_ids,role) AND ((email_status IN ('pending','failed') AND next_attempt_at<=now() AND email_attempts<6) OR (email_status='processing' AND locked_at<now()-interval '10 minutes')) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1",
         )
       ).rows[0];
       if (!row) return null;

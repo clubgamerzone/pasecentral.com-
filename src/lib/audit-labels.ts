@@ -2,6 +2,11 @@ export const auditOperations: Record<
   string,
   { label: string; description: string }
 > = {
+  team_permissions_updated: {
+    label: "Permisos de equipo editados",
+    description:
+      "Un administrador guardó permisos por evento; los permisos globales y cambios de nombre solo los gestiona un administrador global. No cambia la identidad de inicio de sesión.",
+  },
   account_deleted: {
     label: "Cuenta eliminada",
     description:

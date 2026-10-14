@@ -134,7 +134,7 @@ export async function state(db: DB, a: Actor | null) {
       if (manageable.length || isAdmin) {
         people = (
           await tx.query(
-            "SELECT id,name,email FROM profiles WHERE $1::boolean OR id=$2 OR EXISTS(SELECT 1 FROM event_staff s WHERE s.user_id=profiles.id AND s.event_id=ANY($3::uuid[])) ORDER BY name",
+            "SELECT id,name,email,EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id=profiles.id) AS platform_admin, ARRAY(SELECT m.organization_id FROM organization_members m WHERE m.user_id=profiles.id AND m.organization_id IN (SELECT organization_id FROM events WHERE id=ANY($3::uuid[]))) AS managing_organizations FROM profiles WHERE deleted_at IS NULL AND ($1::boolean OR id=$2 OR EXISTS(SELECT 1 FROM event_staff s WHERE s.user_id=profiles.id AND s.event_id=ANY($3::uuid[]))) ORDER BY name",
             [isAdmin, a.id, manageable],
           )
         ).rows;
@@ -180,10 +180,11 @@ export async function state(db: DB, a: Actor | null) {
         : null;
       delete profile.avatar_path;
     }
-    if (isAdmin)
+    if (isAdmin || manageable.length)
       invitations = (
         await tx.query(
-          "SELECT id,email,name,role,event_ids,status,expires_at,email_status,email_attempts,last_error FROM team_invitations WHERE role<>'customer' ORDER BY created_at DESC LIMIT 200",
+          "SELECT id,email,name,role,event_ids,include_access,status,expires_at,email_status,email_attempts,last_error FROM team_invitations WHERE role<>'customer' AND ($1::boolean OR (role<>'platform_admin' AND cardinality(event_ids)>0 AND event_ids <@ $2::uuid[])) ORDER BY created_at DESC LIMIT 200",
+          [isAdmin, manageable],
         )
       ).rows;
     return {

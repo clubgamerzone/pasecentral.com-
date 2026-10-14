@@ -939,7 +939,19 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         );
         return {};
       }
+      case "team_update": {
+        const { updateTeam } = await import("./team");
+        return updateTeam(tx, a, c);
+      }
       case "staff": {
+        await one(
+          tx,
+          "SELECT id FROM profiles WHERE id=$1 AND deleted_at IS NULL FOR KEY SHARE",
+          [c.user_id],
+        );
+        await one(tx, "SELECT id FROM events WHERE id=$1 FOR UPDATE", [
+          c.event_id,
+        ]);
         await permit(tx, a, c.event_id, "manage");
         await tx.query(
           "INSERT INTO event_staff(event_id,user_id,role,active) VALUES($1,$2,$3,$4) ON CONFLICT(event_id,user_id,role) DO UPDATE SET active=excluded.active",

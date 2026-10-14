@@ -36,6 +36,275 @@ beforeEach(async () => {
   await db.query("TRUNCATE organizations,profiles CASCADE");
   await seed(db);
 });
+
+describe("Permisos combinados y gestión de equipo por evento", () => {
+  it("cajero invitado obtiene acceso solo con la casilla y la edición lo retira sin afectar ventas", async () => {
+    const invitation = await execute(db, admin, {
+      action: "invite_create",
+      name: "Equipo prueba",
+      email: customer.email,
+      role: "box_office",
+      include_access: true,
+      event_ids: [e1, e2],
+    });
+    const row = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+      invitation.invitation_id,
+    ]);
+    expect(decrypt(row.email_payload_encrypted)).toContain("lector QR");
+    await execute(db, customer, {
+      action: "invite_accept",
+      token: decrypt(row.token_encrypted),
+    });
+    expect((await state(db, customer)).permissions.access).toEqual(
+      expect.arrayContaining([e1, e2]),
+    );
+    await execute(db, admin, {
+      action: "team_update",
+      user_id: customer.id,
+      assignments: [{ event_id: e1, roles: ["box_office"] }],
+    });
+    const after = await state(db, customer);
+    expect(after.permissions.sell).toContain(e1);
+    expect(after.permissions.access).not.toContain(e1);
+    expect(after.permissions.access).toContain(e2);
+    await execute(db, customer, {
+      action: "invite_accept",
+      token: decrypt(row.token_encrypted),
+    });
+    expect((await state(db, customer)).permissions.access).not.toContain(e1);
+  });
+  it("taquilla sin incluir acceso no valida y no admite casilla para otros roles", async () => {
+    const invitation = await execute(db, admin, {
+      action: "invite_create",
+      name: "Caja",
+      email: customer.email,
+      role: "box_office",
+      event_ids: [e1],
+    });
+    const row = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+      invitation.invitation_id,
+    ]);
+    await execute(db, customer, {
+      action: "invite_accept",
+      token: decrypt(row.token_encrypted),
+    });
+    expect((await state(db, customer)).permissions.access).not.toContain(e1);
+    await expect(
+      execute(db, admin, {
+        action: "invite_create",
+        name: "Inválida",
+        email: box.email,
+        role: "access_staff",
+        include_access: true,
+        event_ids: [e1],
+      }),
+    ).rejects.toThrow("solo aplica");
+  });
+  it("administrador de evento invita solo en sus eventos y aceptación rechaza al perder el gestor su permiso", async () => {
+    await execute(db, admin, {
+      action: "staff",
+      event_id: e1,
+      user_id: customer.id,
+      role: "organizer",
+      active: true,
+    });
+    await expect(
+      execute(db, customer, {
+        action: "invite_create",
+        name: "Otro",
+        email: box.email,
+        role: "box_office",
+        event_ids: [e2],
+      }),
+    ).rejects.toThrow("permiso");
+    await expect(
+      execute(db, customer, {
+        action: "invite_create",
+        name: "Global",
+        email: box.email,
+        role: "platform_admin",
+        event_ids: [],
+      }),
+    ).rejects.toThrow("administrador global");
+    const invitation = await execute(db, customer, {
+      action: "invite_create",
+      name: "Caja",
+      email: box.email,
+      role: "box_office",
+      include_access: true,
+      event_ids: [e1],
+    });
+    const row = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
+      invitation.invitation_id,
+    ]);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT app_private.inviter_authorized($1,$2,$3) AS allowed",
+          [customer.id, [e1], "box_office"],
+        )
+      ).allowed,
+    ).toBe(true);
+    await execute(db, admin, {
+      action: "staff",
+      event_id: e1,
+      user_id: customer.id,
+      role: "organizer",
+      active: false,
+    });
+    await expect(
+      execute(db, box, {
+        action: "invite_accept",
+        token: decrypt(row.token_encrypted),
+      }),
+    ).rejects.toThrow("ya no está autorizada");
+  });
+  it("edición valida todos los eventos antes de guardar y protege nombres y administradores globales", async () => {
+    await execute(db, admin, {
+      action: "staff",
+      event_id: e1,
+      user_id: customer.id,
+      role: "organizer",
+      active: true,
+    });
+    await expect(
+      execute(db, customer, {
+        action: "team_update",
+        user_id: box.id,
+        assignments: [
+          { event_id: e1, roles: [] },
+          { event_id: e2, roles: [] },
+        ],
+      }),
+    ).rejects.toThrow("permiso");
+    expect((await state(db, box)).permissions.sell).toContain(e1);
+    await expect(
+      execute(db, customer, {
+        action: "team_update",
+        user_id: box.id,
+        name: "Editado",
+        assignments: [{ event_id: e1, roles: [] }],
+      }),
+    ).rejects.toThrow("administrador global");
+    await expect(
+      execute(db, customer, {
+        action: "team_update",
+        user_id: admin.id,
+        assignments: [{ event_id: e1, roles: [] }],
+      }),
+    ).rejects.toThrow("administrador global");
+    await execute(db, customer, {
+      action: "team_update",
+      user_id: box.id,
+      assignments: [{ event_id: e1, roles: ["box_office", "access_staff"] }],
+    });
+    expect((await state(db, box)).permissions.access).toContain(e1);
+    await execute(db, customer, {
+      action: "team_update",
+      user_id: box.id,
+      assignments: [{ event_id: e1, roles: [] }],
+    });
+    expect((await state(db, box)).permissions.sell).not.toContain(e1);
+  });
+  it("último administrador protegido y permisos heredados de organización permanecen explícitos", async () => {
+    await expect(
+      execute(db, admin, {
+        action: "team_update",
+        user_id: admin.id,
+        platform_admin: false,
+        assignments: [],
+      }),
+    ).rejects.toThrow("último administrador");
+    await execute(db, admin, {
+      action: "team_update",
+      user_id: customer.id,
+      name: "Nombre equipo",
+      platform_admin: true,
+      assignments: [],
+    });
+    expect((await state(db, customer)).permissions.admin).toBe(true);
+    await execute(db, admin, {
+      action: "team_update",
+      user_id: customer.id,
+      platform_admin: false,
+      assignments: [],
+    });
+    expect((await state(db, customer)).permissions.admin).toBe(false);
+    await execute(db, admin, {
+      action: "team_update",
+      user_id: USERS[1].id,
+      assignments: [{ event_id: e1, roles: [] }],
+    });
+    const result = await state(db, USERS[1]);
+    expect(result.permissions.manage).toContain(e1);
+    expect(
+      result.people.find((p) => p.id === USERS[1].id)?.managing_organizations,
+    ).toHaveLength(1);
+  });
+  it("estado y RLS de invitaciones excluyen otro evento y función privilegiada no es pública", async () => {
+    await execute(db, admin, {
+      action: "staff",
+      event_id: e1,
+      user_id: customer.id,
+      role: "organizer",
+      active: true,
+    });
+    const visible = await execute(db, admin, {
+      action: "invite_create",
+      name: "Uno",
+      email: box.email,
+      role: "box_office",
+      event_ids: [e1],
+    });
+    await execute(db, admin, {
+      action: "invite_create",
+      name: "Dos",
+      email: access.email,
+      role: "access_staff",
+      event_ids: [e2],
+    });
+    await execute(db, admin, {
+      action: "invite_create",
+      name: "Ambos",
+      email: USERS[1].email,
+      role: "organizer",
+      event_ids: [e1, e2],
+    });
+    expect((await state(db, customer)).invitations.map((i) => i.id)).toEqual([
+      visible.invitation_id,
+    ]);
+    await db.transaction(async (tx) => {
+      await tx.query("SET LOCAL ROLE authenticated");
+      await tx.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [
+        customer.id,
+      ]);
+      expect(
+        (await tx.query("SELECT id FROM team_invitations")).rows.map(
+          (i) => i.id,
+        ),
+      ).toEqual([visible.invitation_id]);
+      expect(
+        (
+          await one(
+            tx,
+            "SELECT has_function_privilege('authenticated','app_private.inviter_authorized(uuid,uuid[],text)','EXECUTE') AS allowed",
+          )
+        ).allowed,
+      ).toBe(false);
+    });
+    await expect(
+      execute(db, customer, {
+        action: "invite_revoke",
+        invitation_id: (
+          await one(db, "SELECT id FROM team_invitations WHERE email=$1", [
+            access.email,
+          ])
+        ).id,
+      }),
+    ).rejects.toThrow("permiso");
+  });
+});
 afterAll(async () => {
   await (db as DB & { close(): Promise<void> }).close();
 });
@@ -415,7 +684,7 @@ describe("Inventario, precios y emisión transaccional", () => {
       normalizeAvatar(Buffer.alloc(2 * 1024 * 1024 + 1)),
     ).rejects.toThrow("2 MB");
   });
-  it("invitar exige admin y correo verificado; rol y eventos vienen de invitación", async () => {
+  it("invitar exige gestión del evento y correo verificado; rol y eventos vienen de invitación", async () => {
     const command = {
       action: "invite_create",
       name: "Invitado de prueba",
@@ -424,7 +693,7 @@ describe("Inventario, precios y emisión transaccional", () => {
       event_ids: [e1],
     };
     await expect(execute(db, box, command)).rejects.toThrow(
-      "administrador global",
+      "No tienes permiso",
     );
     const r = await execute(db, admin, command);
     const row = await one(db, "SELECT * FROM team_invitations WHERE id=$1", [
@@ -485,7 +754,7 @@ describe("Inventario, precios y emisión transaccional", () => {
       ]);
       expect(
         (await tx.query("SELECT id FROM team_invitations")).rows,
-      ).toHaveLength(0);
+      ).toHaveLength(1);
     });
   });
   it("invitación revocada, vencida o de admin retirado no asigna roles", async () => {

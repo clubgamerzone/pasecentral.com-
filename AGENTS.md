@@ -739,6 +739,8 @@ Visualización de Análisis y Vista general: `src/components/analytics-charts.ts
 
 ## 23. Índice de implementación del MVP (2026-10-11)
 
+Equipo ampliado (2026-10-14): invitación de cajero con Incluir acceso y edición transaccional de permisos por usuario/evento por gestores autorizados; global controla nombre/rol global con último admin protegido. Código team-editor.tsx/team.ts/invitations.ts, migración 009; guía docs/TEAM_PERMISSIONS.md. No cambia roles existentes al migrar.
+
 La guía original se conserva en AGENTS.md.txt como referencia histórica. Este AGENTS.md es la fuente activa de alcance.
 
 - Instalación, variables, versiones y acceso a Supabase/Wompi/email: README.md.

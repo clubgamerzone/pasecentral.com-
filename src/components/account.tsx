@@ -339,8 +339,9 @@ export function AcceptInvitation() {
 export function InviteTeam({ eventId }: { eventId?: string }) {
   const { data, run, busy } = useApp();
   const [role, setRole] = useState("box_office"),
-    [events, setEvents] = useState<string[]>(eventId ? [eventId] : []);
-  if (!data.permissions.admin) return null;
+    [events, setEvents] = useState<string[]>(eventId ? [eventId] : []),
+    [includeAccess, setIncludeAccess] = useState(false);
+  if (!data.permissions.admin && !data.permissions.manage.length) return null;
   const scoped = ["organizer", "box_office", "access_staff"].includes(role);
   const names: Record<string, string> = {
     platform_admin: "Administrador global",
@@ -366,6 +367,7 @@ export function InviteTeam({ eventId }: { eventId?: string }) {
               ...formValues(form),
               role,
               event_ids: scoped ? events : [],
+              include_access: role === "box_office" && includeAccess,
             },
             "Invitación guardada. El correo se enviará automáticamente.",
           );
@@ -382,33 +384,55 @@ export function InviteTeam({ eventId }: { eventId?: string }) {
           <Field name="email" label="Correo de la invitación" type="email" />
           <Field name="invitation-role" label="Rol de la invitación">
             <select value={role} onChange={(e) => setRole(e.target.value)}>
-              {Object.entries(names).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
+              {Object.entries(names)
+                .filter(
+                  ([id]) => data.permissions.admin || id !== "platform_admin",
+                )
+                .map(([id, name]) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
             </select>
           </Field>
         </div>
+        {role === "box_office" && (
+          <>
+            <label className="inline-check" style={{ marginTop: 18 }}>
+              <input
+                type="checkbox"
+                checked={includeAccess}
+                onChange={(e) => setIncludeAccess(e.target.checked)}
+              />
+              Incluir acceso (validar entradas con lector QR)
+            </label>
+            <p className="helper">
+              La casilla agrega acceso al aceptar. Si ya lo tiene, desmarcarla
+              no lo retira; usa Editar permisos.
+            </p>
+          </>
+        )}
         {scoped ? (
           <fieldset style={{ marginTop: 18 }}>
             <legend>Eventos asignados (puedes elegir varios)</legend>
-            {data.events.map((e) => (
-              <label className="inline-check" key={e.id}>
-                <input
-                  type="checkbox"
-                  checked={events.includes(e.id)}
-                  onChange={(ev) =>
-                    setEvents(
-                      ev.target.checked
-                        ? [...events, e.id]
-                        : events.filter((id) => id !== e.id),
-                    )
-                  }
-                />
-                {e.title}
-              </label>
-            ))}
+            {data.events
+              .filter((e) => data.permissions.manage.includes(e.id))
+              .map((e) => (
+                <label className="inline-check" key={e.id}>
+                  <input
+                    type="checkbox"
+                    checked={events.includes(e.id)}
+                    onChange={(ev) =>
+                      setEvents(
+                        ev.target.checked
+                          ? [...events, e.id]
+                          : events.filter((id) => id !== e.id),
+                      )
+                    }
+                  />
+                  {e.title}
+                </label>
+              ))}
           </fieldset>
         ) : (
           <p className="notice" style={{ marginTop: 18 }}>
@@ -447,6 +471,7 @@ export function InviteTeam({ eventId }: { eventId?: string }) {
                     </td>
                     <td>
                       {names[i.role]}
+                      {i.include_access && " + acceso QR"}
                       <br />
                       {i.event_ids
                         .map(

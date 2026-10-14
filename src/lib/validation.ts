@@ -101,6 +101,7 @@ export const commands = z.discriminatedUnion("action", [
     email: z.email().max(254),
     name: z.string().trim().min(1).max(150),
     role: z.enum(["platform_admin", "organizer", "box_office", "access_staff"]),
+    include_access: z.boolean().default(false),
     event_ids: z.array(id).max(100).default([]),
   }),
   z.object({ action: z.literal("invite_resend"), invitation_id: id }),
@@ -159,6 +160,22 @@ export const commands = z.discriminatedUnion("action", [
     event_id: id,
     phase_id: id,
     active: z.boolean(),
+  }),
+  z.object({
+    action: z.literal("team_update"),
+    user_id: id,
+    name: z.string().trim().min(1).max(150).optional(),
+    platform_admin: z.boolean().optional(),
+    assignments: z
+      .array(
+        z.object({
+          event_id: id,
+          roles: z
+            .array(z.enum(["organizer", "box_office", "access_staff"]))
+            .max(3),
+        }),
+      )
+      .max(100),
   }),
   z.object({
     action: z.literal("staff"),
