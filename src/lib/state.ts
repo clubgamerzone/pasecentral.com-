@@ -2,6 +2,8 @@ import type { DB, Row } from "./db";
 import { admin, can, type Actor } from "./service";
 import { demoMode, appEnvironment } from "./config";
 export async function state(db: DB, a: Actor | null) {
+  const { expireTransfers } = await import("./transfers");
+  await expireTransfers(db);
   return db.transaction(async (tx) => {
     const all = (await tx.query("SELECT * FROM events ORDER BY starts_at"))
       .rows;
@@ -82,15 +84,15 @@ export async function state(db: DB, a: Actor | null) {
     if (a) {
       orders = (
         await tx.query(
-          `SELECT id,event_id,buyer_user_id,buyer_name,buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,confirmed_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) ORDER BY created_at DESC`,
+          `SELECT id,event_id,buyer_user_id,gift_email IS NOT NULL AS is_gift,CASE WHEN buyer_user_id=$1 OR event_id=ANY($2::uuid[]) THEN buyer_name END AS buyer_name,CASE WHEN buyer_user_id=$1 OR event_id=ANY($2::uuid[]) THEN buyer_email END AS buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,confirmed_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) OR EXISTS(SELECT 1 FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=orders.id AND t.owner_user_id=$1) ORDER BY created_at DESC`,
           [a.id, sellable],
         )
       ).rows;
       const orderIds = orders.map((o) => o.id);
       tickets = (
         await tx.query(
-          `SELECT t.id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=ANY($1::uuid[]) OR t.event_id=ANY($2::uuid[]) ORDER BY t.event_sequence`,
-          [orderIds, accessible],
+          `SELECT t.id,t.owner_user_id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name,EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') AS transfer_pending FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE t.owner_user_id=$1 OR t.event_id=ANY($2::uuid[]) OR (i.order_id=ANY($3::uuid[]) AND t.owner_user_id IS NULL) ORDER BY t.event_sequence`,
+          [a.id, [...sellable, ...accessible], orderIds],
         )
       ).rows;
       payments = (
@@ -167,7 +169,7 @@ export async function state(db: DB, a: Actor | null) {
     const profile = a
       ? (
           await tx.query(
-            "SELECT name,email,phone,bio,avatar_path,updated_at FROM profiles WHERE id=$1",
+            "SELECT name,email,phone,bio,avatar_path,updated_at,gender,age_band,terms_accepted_at FROM profiles WHERE id=$1",
             [a.id],
           )
         ).rows[0]
@@ -185,6 +187,14 @@ export async function state(db: DB, a: Actor | null) {
         )
       ).rows;
     return {
+      transfers: a
+        ? (
+            await tx.query(
+              "SELECT r.id,r.from_user_id,p.name AS from_name,r.to_user_id,r.recipient_email,r.kind,r.status,r.expires_at FROM ticket_transfers r JOIN profiles p ON p.id=r.from_user_id WHERE r.from_user_id=$1 OR lower(r.recipient_email)=lower($2) ORDER BY r.created_at DESC LIMIT 100",
+              [a.id, a.email ?? ""],
+            )
+          ).rows
+        : [],
       demo: demoMode(),
       environment: appEnvironment(),
       actor: a,

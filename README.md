@@ -143,3 +143,6 @@ En **Mi perfil** (`/account/profile`) se editan nombre, teléfono, biografía y 
 ## Análisis de ventas y audiencia
 
 Vista general y Análisis/reportes permiten comparar eventos/años y consultar fases, localidades, canales, operadores y audiencia. Género y rango de edad son opcionales por asistente en compra web/taquilla, con autorización; se muestran datos faltantes y no se infiere público histórico. Migración 007 aditiva, API solo de agregados y CSV privados. Uso, definiciones y pruebas: [docs/ANALYTICS.md](docs/ANALYTICS.md).
+## Cuentas y regalos
+
+Registro con género y edad opcional, Mi perfil con eliminación propia, regalos y transferencias aceptables durante siete días desde Mis entradas. Admin gestiona Organizaciones y fases Online/Taquilla/Ambos; apertura usa hora del día de inicio, edad mínima editable y precios COP con miles. Guía técnica/operativa, migración 008, plantillas Auth españolas y límites: [docs/ACCOUNTS_TICKETS_2026-10-14.md](docs/ACCOUNTS_TICKETS_2026-10-14.md).

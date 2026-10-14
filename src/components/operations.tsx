@@ -9,6 +9,8 @@ import {
   initialAnalyticsFilters,
 } from "./analytics";
 import { AttendeeFields, attendeeItems } from "./attendee-fields";
+import { EventSchedule, scheduleValues } from "./enhanced-fields";
+import { EditPhase } from "./phase-editing";
 import type { Attendee } from "@/lib/demographics";
 import { auditOperation, auditEntity } from "@/lib/audit-labels";
 import {
@@ -64,13 +66,7 @@ export function EventEditor({
             onSubmit={async (ev) => {
               ev.preventDefault();
               const b = formValues(ev.currentTarget);
-              for (const k of [
-                "starts_at",
-                "ends_at",
-                "admission_starts_at",
-                "admission_ends_at",
-              ])
-                b[k] = iso(b[k]);
+              scheduleValues(b);
               const r = await run(
                 { action: "create_event", ...b },
                 "Evento creado como borrador",
@@ -102,26 +98,7 @@ export function EventEditor({
               />
               <Field name="venue_name" label="Nombre del recinto" />
               <Field name="address" label="Dirección" />
-              <Field
-                name="starts_at"
-                label="Inicio del evento · Bogotá"
-                type="datetime-local"
-              />
-              <Field
-                name="ends_at"
-                label="Fin del evento · Bogotá"
-                type="datetime-local"
-              />
-              <Field
-                name="admission_starts_at"
-                label="Apertura de puertas · Bogotá"
-                type="datetime-local"
-              />
-              <Field
-                name="admission_ends_at"
-                label="Cierre de puertas · Bogotá"
-                type="datetime-local"
-              />
+              <EventSchedule />
               <div className="full">
                 <label htmlFor="description">Descripción</label>
                 <textarea
@@ -368,12 +345,19 @@ export function EventEditor({
                         {types.find((t) => t.id === p.ticket_type_id)?.name} /{" "}
                         {p.name}
                       </td>
-                      <td>{p.channel === "web" ? "Web" : "Taquilla"}</td>
+                      <td>
+                        {p.channel === "web"
+                          ? "Online"
+                          : p.channel === "both"
+                            ? "Ambos"
+                            : "Taquilla"}
+                      </td>
                       <td>{money(p.price_cop)}</td>
                       <td>{when(p.starts_at)}</td>
                       <td>{when(p.ends_at)}</td>
                       <td>{p.active ? "Activa" : "Inactiva"}</td>
                       <td>
+                        <EditPhase phase={p} eventId={eventId} />
                         <button
                           className="btn small"
                           disabled={busy}
@@ -419,6 +403,7 @@ export function EventEditor({
                     <select name="channel" id="channel">
                       <option value="web">Online</option>
                       <option value="box_office">Taquilla</option>
+                      <option value="both">Ambos</option>
                     </select>
                   </Field>
                   <Field
@@ -434,13 +419,13 @@ export function EventEditor({
                   />
                   <Field
                     name="starts_at"
-                    label="Inicio · Bogotá"
+                    label="Inicio · Colombia"
                     type="datetime-local"
                     value={local(new Date())}
                   />
                   <Field
                     name="ends_at"
-                    label="Fin · Bogotá"
+                    label="Fin · Colombia"
                     type="datetime-local"
                     value={local(e.ends_at)}
                   />
@@ -663,7 +648,7 @@ export function BoxOffice() {
       p: data.phases.find(
         (p) =>
           p.ticket_type_id === t.id &&
-          p.channel === "box_office" &&
+          ["box_office", "both"].includes(p.channel) &&
           p.active &&
           new Date(p.starts_at) <= new Date() &&
           new Date(p.ends_at) > new Date(),
@@ -712,6 +697,9 @@ export function BoxOffice() {
           {e && (
             <p className="helper">
               {e.available} lugares disponibles · {e.venue_name}
+              {e.minimum_age > 0
+                ? ` · Edad mínima: ${e.minimum_age} años`
+                : " · Todas las edades"}
             </p>
           )}
           <h3 style={{ marginTop: 27 }}>Selecciona las entradas</h3>
@@ -1068,6 +1056,7 @@ export function Cash() {
   );
 }
 const resultNames: Record<string, string> = {
+  pending_transfer: "Entrada pendiente de aceptación de regalo o transferencia",
   accepted: "Ingreso autorizado",
   already_used: "Entrada ya utilizada",
   cancelled: "Entrada anulada",

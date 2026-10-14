@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useApp, Heading, Field } from "./app";
 import { formValues } from "./operations";
+import { genders, ageBands } from "@/lib/demographics";
+import { DeleteAccount } from "./ticket-wallet";
 export function MyProfile() {
   const { data, run, busy, refresh, notify } = useApp();
   const [uploading, setUploading] = useState(false);
@@ -38,6 +40,16 @@ export function MyProfile() {
         title="Mi perfil"
         subtitle="Tus datos de cuenta, contacto y foto de perfil"
       />
+      {typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("confirmed") ===
+          "1" && (
+          <p className="notice">
+            Tu correo quedó confirmado y ya ingresaste a tu cuenta. Revisa tu
+            perfil. Si recibiste un regalo, acéptalo en Mis entradas; si
+            recibiste una invitación al equipo, vuelve a su enlace para
+            aceptarla.
+          </p>
+        )}
       <section className="panel" style={{ maxWidth: 760 }}>
         <div
           style={{
@@ -94,11 +106,20 @@ export function MyProfile() {
           </div>
         </div>
         <form
-          key={JSON.stringify([p.name, p.phone, p.bio])}
+          key={JSON.stringify([p.name, p.phone, p.bio, p.gender, p.age_band])}
           onSubmit={async (e) => {
             e.preventDefault();
             await run(
-              { action: "profile_update", ...formValues(e.currentTarget) },
+              {
+                action: "profile_update",
+                ...formValues(e.currentTarget),
+                gender:
+                  String(new FormData(e.currentTarget).get("gender") || "") ||
+                  null,
+                age_band:
+                  String(new FormData(e.currentTarget).get("age_band") || "") ||
+                  null,
+              },
               "Perfil actualizado",
             );
           }}
@@ -129,6 +150,41 @@ export function MyProfile() {
               maxLength={30}
               required={false}
             />
+            <label className="field">
+              <span>Género</span>
+              <select
+                name="gender"
+                aria-label="Género"
+                defaultValue={p.gender ?? ""}
+              >
+                <option value="">Sin dato</option>
+                {Object.entries(genders).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Rango de edad (opcional)</span>
+              <select
+                name="age_band"
+                aria-label="Rango de edad (opcional)"
+                defaultValue={p.age_band ?? ""}
+              >
+                <option value="">Prefiero no indicar edad</option>
+                {Object.entries(ageBands).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="helper">
+              Datos declarados para estadísticas de organización. Se usarán para
+              tu propia entrada; no sustituyen la verificación de edad en el
+              ingreso.
+            </p>
             <label htmlFor="profile-bio">Acerca de mí</label>
             <textarea
               id="profile-bio"
@@ -180,6 +236,7 @@ export function MyProfile() {
           </>
         )}
       </section>
+      <DeleteAccount />
     </>
   );
 }

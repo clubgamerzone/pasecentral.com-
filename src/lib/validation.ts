@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { gender, ageBand } from "./account-rules";
 const id = z.string().uuid();
 const money = z.coerce.number().int().min(0).max(100000000);
 const text = z.string().trim().min(1).max(300);
@@ -39,6 +40,33 @@ const items = z
   .max(10);
 export const commands = z.discriminatedUnion("action", [
   z.object({
+    action: z.literal("organization_save"),
+    organization_id: id.optional(),
+    name: text,
+  }),
+  z.object({
+    action: z.literal("transfer_create"),
+    ticket_ids: z.array(id).min(1).max(100),
+    recipient_email: z.email().max(254),
+  }),
+  z.object({
+    action: z.literal("transfer_resolve"),
+    transfer_id: id,
+    accept: z.boolean(),
+    admission_age_confirmed: z.boolean().default(false),
+  }),
+  z.object({ action: z.literal("transfer_cancel"), transfer_id: id }),
+  z.object({
+    action: z.literal("update_phase"),
+    event_id: id,
+    phase_id: id,
+    name: text,
+    channel: z.enum(["web", "box_office", "both"]),
+    price_cop: money,
+    starts_at: date,
+    ends_at: date,
+  }),
+  z.object({
     action: z.literal("update_event"),
     event_id: id,
     title: text,
@@ -50,6 +78,7 @@ export const commands = z.discriminatedUnion("action", [
     admission_starts_at: date,
     admission_ends_at: date,
     capacity: z.coerce.number().int().min(1).max(1000000),
+    minimum_age: z.coerce.number().int().min(0).max(100).default(18),
   }),
   z.object({
     action: z.literal("update_type"),
@@ -64,6 +93,8 @@ export const commands = z.discriminatedUnion("action", [
     name: z.string().trim().min(1).max(150),
     phone: z.string().trim().max(30).default(""),
     bio: z.string().trim().max(1000).default(""),
+    gender: gender.nullable().optional(),
+    age_band: ageBand.nullable().optional(),
   }),
   z.object({
     action: z.literal("invite_create"),
@@ -94,6 +125,7 @@ export const commands = z.discriminatedUnion("action", [
     admission_starts_at: date,
     admission_ends_at: date,
     capacity: z.coerce.number().int().min(1).max(1000000),
+    minimum_age: z.coerce.number().int().min(0).max(100).default(18),
   }),
   z.object({
     action: z.literal("event_status"),
@@ -117,7 +149,7 @@ export const commands = z.discriminatedUnion("action", [
     event_id: id,
     ticket_type_id: id,
     name: text,
-    channel: z.enum(["web", "box_office"]),
+    channel: z.enum(["web", "box_office", "both"]),
     price_cop: money,
     starts_at: date,
     ends_at: date,
@@ -144,6 +176,9 @@ export const commands = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("reserve"),
     demographics_consent: z.boolean().default(false),
+    is_gift: z.boolean().default(false),
+    gift_email: z.email().max(254).optional(),
+    admission_age_confirmed: z.boolean().default(false),
     event_id: id,
     items,
     buyer_name: text,

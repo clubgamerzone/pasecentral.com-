@@ -2,6 +2,55 @@ export const auditOperations: Record<
   string,
   { label: string; description: string }
 > = {
+  account_deleted: {
+    label: "Cuenta eliminada",
+    description:
+      "El titular confirmó la eliminación. Se anuló el acceso a entradas propias sin usar y se conservó el historial de ventas.",
+  },
+  organization_created: {
+    label: "Organización creada",
+    description:
+      "El administrador creó una organización seleccionable al crear eventos.",
+  },
+  organization_updated: {
+    label: "Organización actualizada",
+    description: "El administrador modificó el nombre de una organización.",
+  },
+  phase_updated: {
+    label: "Fase de precio editada",
+    description:
+      "Un gestor modificó canal, nombre, importe o vigencia sin alterar precios históricos de las compras.",
+  },
+  gift_created: {
+    label: "Regalo de entradas preparado",
+    description:
+      "Se reservó la entrega al destinatario por siete días, pendiente de aceptación.",
+  },
+  transfer_created: {
+    label: "Transferencia enviada",
+    description:
+      "El titular seleccionó entradas y solicitó su entrega a una cuenta existente.",
+  },
+  transfer_accepted: {
+    label: "Entradas aceptadas",
+    description:
+      "El destinatario confirmó su identidad y aceptó la entrega; los QR anteriores se invalidaron.",
+  },
+  transfer_declined: {
+    label: "Entradas rechazadas",
+    description:
+      "El destinatario rechazó la entrega y las entradas vigentes volvieron al remitente.",
+  },
+  transfer_cancelled: {
+    label: "Entrega cancelada",
+    description:
+      "El remitente canceló una entrega pendiente. Se renovaron los QR.",
+  },
+  transfer_expired: {
+    label: "Entrega vencida",
+    description:
+      "Pasaron siete días sin aceptar. Las entradas vigentes regresaron al remitente con QR nuevos.",
+  },
   admin_bootstrap: {
     label: "Administrador inicial creado",
     description:
@@ -210,6 +259,7 @@ export const auditOperations: Record<
   },
 };
 export const auditEntities: Record<string, string> = {
+  ticket_transfer: "Regalo o transferencia",
   event: "Evento",
   order: "Orden de compra",
   ticket: "Entrada",

@@ -300,6 +300,8 @@ export function buildAnalytics(
         gross_cop: 0,
       };
       r.quantity += i.quantity;
+      if (kind === "phases" && r.channel !== channelLabels[o.channel])
+        r.channel = "Online y taquilla";
       r.gross_cop += i.line_total_cop;
       r.active_tickets += activeByItem.get(i.id) ?? 0;
       groups.set(k, r);

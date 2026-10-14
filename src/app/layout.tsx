@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BrowserMenuGuard } from "@/components/browser-menu-guard";
 export const metadata: Metadata = {
   title: "Pase Central · Cada noche empieza aquí",
   description:
@@ -9,7 +10,10 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body>
+        <BrowserMenuGuard />
+        {children}
+      </body>
     </html>
   );
 }

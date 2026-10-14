@@ -3,8 +3,7 @@ import { useState } from "react";
 import type { Row } from "@/lib/db";
 import { useApp, Field } from "./app";
 import { formValues } from "./operations";
-const local = (v: string) =>
-  new Date(new Date(v).getTime() - 5 * 3600000).toISOString().slice(0, 16);
+import { EventSchedule, scheduleValues } from "./enhanced-fields";
 export function EventDetails({ event: e }: { event: Row }) {
   const { run, busy, refresh, notify } = useApp();
   const [uploading, setUploading] = useState(false);
@@ -73,13 +72,7 @@ export function EventDetails({ event: e }: { event: Row }) {
           onSubmit={async (ev) => {
             ev.preventDefault();
             const values = formValues(ev.currentTarget);
-            for (const k of [
-              "starts_at",
-              "ends_at",
-              "admission_starts_at",
-              "admission_ends_at",
-            ])
-              values[k] = new Date(`${values[k]}:00-05:00`).toISOString();
+            scheduleValues(values);
             await run(
               { action: "update_event", event_id: e.id, ...values },
               "Evento actualizado",
@@ -105,20 +98,7 @@ export function EventDetails({ event: e }: { event: Row }) {
             defaultValue={e.venue_name}
           />
           <Field name="address" label="Dirección" defaultValue={e.address} />
-          {[
-            ["starts_at", "Inicio del evento"],
-            ["ends_at", "Fin del evento"],
-            ["admission_starts_at", "Apertura de puertas"],
-            ["admission_ends_at", "Cierre de puertas"],
-          ].map(([k, label]) => (
-            <Field
-              key={k}
-              name={k}
-              label={label}
-              type="datetime-local"
-              defaultValue={local(e[k])}
-            />
-          ))}
+          <EventSchedule event={e} />
           <label className="field full">
             <span>Descripción del evento</span>
             <textarea

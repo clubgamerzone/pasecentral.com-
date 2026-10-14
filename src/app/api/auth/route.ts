@@ -6,6 +6,12 @@ import { appUrl, demoMode } from "@/lib/config";
 import { originCheck, jsonBody, errorResponse } from "@/lib/http";
 import { database } from "@/lib/db";
 import { fail, rateLimit } from "@/lib/service";
+import {
+  registration,
+  TERMS_VERSION,
+  gender,
+  ageBand,
+} from "@/lib/account-rules";
 const schema = z.object({
   action: z.enum([
     "login",
@@ -20,6 +26,9 @@ const schema = z.object({
   email: z.email().optional(),
   password: z.string().min(10).max(128).optional(),
   name: z.string().min(1).max(150).optional(),
+  gender: gender.optional(),
+  age_band: ageBand.nullable().optional(),
+  terms_accepted: z.boolean().optional(),
   access_token: z.string().min(20).max(8192).optional(),
   refresh_token: z.string().min(10).max(2048).optional(),
 });
@@ -85,7 +94,7 @@ export async function POST(req: Request) {
     const s = await supabase();
     if (b.action === "forgot") {
       const { error } = await s.auth.resetPasswordForEmail(b.email, {
-        redirectTo: `${appUrl()}/auth/confirm`,
+        redirectTo: `${appUrl()}/auth/confirm?type=recovery`,
       });
       if (error)
         fail(
@@ -99,12 +108,21 @@ export async function POST(req: Request) {
       });
     }
     if (!b.email || !b.password) fail("Faltan credenciales");
+    const profile = b.action === "signup" ? registration.parse(b) : null;
     const res =
       b.action === "signup"
         ? await s.auth.signUp({
             email: b.email,
             password: b.password,
-            options: { data: { name: b.name ?? "Comprador" } },
+            options: {
+              emailRedirectTo: `${appUrl()}/auth/confirm?type=signup`,
+              data: {
+                name: profile!.name,
+                gender: profile!.gender,
+                age_band: profile!.age_band,
+                terms_version: TERMS_VERSION,
+              },
+            },
           })
         : await s.auth.signInWithPassword({
             email: b.email,

@@ -35,9 +35,10 @@ export async function currentActor(): Promise<Actor | null> {
     if (!u) return null;
     const p = await one(
       await database(),
-      "SELECT name FROM profiles WHERE id=$1",
+      "SELECT name,deleted_at FROM profiles WHERE id=$1",
       [u.id],
     );
+    if (p.deleted_at) return null;
     return {
       id: u.id,
       name: p.name,
@@ -53,10 +54,39 @@ export async function currentActor(): Promise<Actor | null> {
   if (error || !user) return null;
   const db = await database();
   await db.query(
-    "INSERT INTO profiles(id,name,email) VALUES($1,$2,$3) ON CONFLICT(id) DO UPDATE SET email=excluded.email",
-    [user.id, user.user_metadata?.name ?? "Comprador", user.email ?? null],
+    "INSERT INTO profiles(id,auth_user_id,name,email,gender,age_band,terms_accepted_at,terms_version) VALUES($1,$1,$2,$3,$4,$5,$6,$7) ON CONFLICT(id) DO UPDATE SET email=excluded.email,auth_user_id=excluded.auth_user_id WHERE profiles.deleted_at IS NULL",
+    [
+      user.id,
+      user.user_metadata?.name ?? "Comprador",
+      user.email ?? null,
+      ["female", "male", "other", "prefer_not_to_say"].includes(
+        user.user_metadata?.gender,
+      )
+        ? user.user_metadata.gender
+        : null,
+      [
+        "0_5",
+        "6_12",
+        "13_17",
+        "18_24",
+        "25_34",
+        "35_44",
+        "45_54",
+        "55_64",
+        "65_plus",
+      ].includes(user.user_metadata?.age_band)
+        ? user.user_metadata.age_band
+        : null,
+      user.user_metadata?.terms_version === "2026-10-14"
+        ? user.created_at
+        : null,
+      user.user_metadata?.terms_version === "2026-10-14" ? "2026-10-14" : null,
+    ],
   );
-  const p = await one(db, "SELECT name FROM profiles WHERE id=$1", [user.id]);
+  const p = await one(db, "SELECT name,deleted_at FROM profiles WHERE id=$1", [
+    user.id,
+  ]);
+  if (p.deleted_at) return null;
   return {
     id: user.id,
     name: p.name,

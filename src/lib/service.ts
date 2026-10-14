@@ -192,7 +192,37 @@ async function issue(tx: Tx, o: Row, e: Row) {
       );
     }
   await tx.query("UPDATE events SET next_sequence=$2 WHERE id=$1", [e.id, seq]);
-  if (o.buyer_email)
+  if (o.gift_email) {
+    const { transferTickets, notifyAccount } = await import("./transfers");
+    const p = await one(tx, "SELECT name,email FROM profiles WHERE id=$1", [
+      o.buyer_user_id,
+    ]);
+    const ids = (
+      await tx.query(
+        "SELECT t.id FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1",
+        [o.id],
+      )
+    ).rows.map((t) => t.id);
+    await transferTickets(
+      tx,
+      {
+        id: o.buyer_user_id,
+        name: p.name,
+        email: p.email,
+        email_verified: true,
+      },
+      ids,
+      o.gift_email,
+      "gift",
+    );
+    if (p.email)
+      await notifyAccount(
+        tx,
+        p.email,
+        "Tu compra para regalo fue confirmada",
+        "El destinatario tiene 7 días para aceptar tus entradas desde Mis entradas. Puedes consultar o cancelar la entrega pendiente desde tu cuenta.",
+      );
+  } else if (o.buyer_email)
     await tx.query("INSERT INTO delivery_jobs(order_id) VALUES($1)", [o.id]);
   await audit(tx, null, "tickets_issued", "order", o.id, {
     quantity: seq - e.next_sequence,
@@ -218,6 +248,19 @@ async function createOrder(
   const complimentary = !web && c.method === "complimentary";
   if (!web) await permit(tx, a, c.event_id, complimentary ? "manage" : "sell");
   const e = await lockEvent(tx, c.event_id);
+  if (c.action === "reserve") {
+    if (!a.email_verified || !a.email)
+      fail("Confirma tu correo antes de comprar", 403);
+    c.buyer_email = a.email;
+    if (c.is_gift && !c.gift_email)
+      fail("Indica el correo del destinatario del regalo");
+    if (c.is_gift && c.gift_email!.toLowerCase() === a.email.toLowerCase())
+      fail("El destinatario del regalo debe ser otra persona");
+    if (!c.is_gift && e.minimum_age > 0 && !c.admission_age_confirmed)
+      fail(
+        `Confirma que los asistentes cumplen la edad mínima de ${e.minimum_age} años`,
+      );
+  }
   const prior = (
     await tx.query(
       "SELECT id,created_by,event_id FROM orders WHERE idempotency_key=$1",
@@ -253,7 +296,7 @@ async function createOrder(
       ? { id: null, price_cop: 0, name: "Cortesía" }
       : await one(
           tx,
-          "SELECT * FROM pricing_phases WHERE ticket_type_id=$1 AND channel=$2 AND active AND starts_at<=now() AND ends_at>now()",
+          "SELECT * FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND ends_at>now()",
           [t.id, channel],
         );
     const line = phase.price_cop * i.quantity;
@@ -316,6 +359,27 @@ async function createOrder(
         c.demographics_consent,
       ],
     );
+  }
+  if (c.action === "reserve" && c.is_gift)
+    await tx.query("UPDATE orders SET gift_email=$2 WHERE id=$1", [
+      o.id,
+      c.gift_email!.toLowerCase(),
+    ]);
+  if (c.action === "reserve" && !c.is_gift) {
+    const p = await one(
+      tx,
+      "SELECT gender,age_band FROM profiles WHERE id=$1",
+      [a.id],
+    );
+    if (e.minimum_age >= 18 && ["0_5", "6_12", "13_17"].includes(p.age_band))
+      fail(
+        "La edad declarada en tu perfil no cumple la edad mínima del evento",
+      );
+    if (p.gender || p.age_band)
+      await tx.query(
+        "UPDATE order_attendees SET gender=$2,age_band=$3,demographics_consent=true WHERE order_item_id=(SELECT id FROM order_items WHERE order_id=$1 AND ticket_type_id=$4 ORDER BY id LIMIT 1) AND ordinal=1",
+        [o.id, p.gender, p.age_band, c.items[0].ticket_type_id],
+      );
   }
   const payment = await one(
     tx,
@@ -480,21 +544,31 @@ async function checkin(
     )
   ).rows[0];
   const now = Date.now();
+  const held =
+    t &&
+    (
+      await tx.query(
+        "SELECT 1 FROM ticket_transfer_items i JOIN ticket_transfers r ON r.id=i.transfer_id WHERE i.ticket_id=$1 AND r.status='pending' AND r.expires_at>now()",
+        [t.id],
+      )
+    ).rows.length > 0;
   const result = !authorized
     ? "unauthorized"
     : !t
       ? "unknown_ticket"
       : t.event_id !== e.id
         ? "wrong_event"
-        : t.status === "cancelled" || e.status === "cancelled"
-          ? "cancelled"
-          : t.status === "used"
-            ? "already_used"
-            : now < new Date(e.admission_starts_at).getTime() ||
-                now >= new Date(e.admission_ends_at).getTime() ||
-                e.status === "finished"
-              ? "outside_admission_window"
-              : "accepted";
+        : held
+          ? "pending_transfer"
+          : t.status === "cancelled" || e.status === "cancelled"
+            ? "cancelled"
+            : t.status === "used"
+              ? "already_used"
+              : now < new Date(e.admission_starts_at).getTime() ||
+                  now >= new Date(e.admission_ends_at).getTime() ||
+                  e.status === "finished"
+                ? "outside_admission_window"
+                : "accepted";
   if (result === "accepted")
     await tx.query(
       "UPDATE tickets SET status='used',used_at=now() WHERE id=$1",
@@ -526,12 +600,71 @@ async function checkin(
 }
 export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
   const c = commands.parse(input);
+  const { expireTransfers } = await import("./transfers");
+  await expireTransfers(db);
   return db.transaction(async (tx) => {
+    const actorProfile = await one(
+      tx,
+      "SELECT deleted_at FROM profiles WHERE id=$1 FOR SHARE",
+      [a.id],
+    );
+    if (actorProfile.deleted_at) fail("Esta cuenta fue eliminada", 401);
     switch (c.action) {
+      case "organization_save": {
+        if (!(await admin(tx, a)))
+          fail(
+            "Solo el administrador puede crear o modificar organizaciones",
+            403,
+          );
+        const org = c.organization_id
+          ? await one(
+              tx,
+              "UPDATE organizations SET name=$2 WHERE id=$1 RETURNING id",
+              [c.organization_id, c.name],
+            )
+          : await one(
+              tx,
+              "INSERT INTO organizations(name) VALUES($1) RETURNING id",
+              [c.name],
+            );
+        await audit(
+          tx,
+          a,
+          c.organization_id ? "organization_updated" : "organization_created",
+          "organization",
+          org.id,
+        );
+        return org;
+      }
+      case "transfer_create":
+      case "transfer_resolve":
+      case "transfer_cancel": {
+        const { transferTickets, resolveTransfer } =
+          await import("./transfers");
+        return c.action === "transfer_create"
+          ? transferTickets(tx, a, c.ticket_ids, c.recipient_email)
+          : resolveTransfer(
+              tx,
+              a,
+              c.transfer_id,
+              c.action === "transfer_resolve" && c.accept,
+              c.action === "transfer_cancel",
+              c.action === "transfer_resolve" && c.admission_age_confirmed,
+            );
+      }
       case "profile_update": {
         await tx.query(
-          "UPDATE profiles SET name=$2,phone=$3,bio=$4,updated_at=now() WHERE id=$1",
-          [a.id, c.name, c.phone || null, c.bio],
+          "UPDATE profiles SET name=$2,phone=$3,bio=$4,gender=CASE WHEN $5 THEN $6 ELSE gender END,age_band=CASE WHEN $7 THEN $8 ELSE age_band END,updated_at=now() WHERE id=$1",
+          [
+            a.id,
+            c.name,
+            c.phone || null,
+            c.bio,
+            c.gender !== undefined,
+            c.gender ?? null,
+            c.age_band !== undefined,
+            c.age_band ?? null,
+          ],
         );
         await audit(tx, a, "profile_updated", "profile", a.id);
         return {};
@@ -544,6 +677,24 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         return invitationCommand(tx, a, c);
       }
       case "create_event": {
+        if (
+          new Date(new Date(c.starts_at).getTime() - 5 * 3600000)
+            .toISOString()
+            .slice(0, 10) !==
+          new Date(new Date(c.admission_starts_at).getTime() - 5 * 3600000)
+            .toISOString()
+            .slice(0, 10)
+        )
+          fail(
+            "La apertura de puertas debe estar en la fecha de inicio del evento",
+          );
+        if (
+          new Date(c.ends_at) <= new Date(c.starts_at) ||
+          new Date(c.admission_ends_at) <= new Date(c.admission_starts_at)
+        )
+          fail(
+            "El fin del evento y el cierre de puertas deben ser posteriores a sus inicios",
+          );
         if (
           !(await admin(tx, a)) &&
           !(
@@ -590,7 +741,7 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
               if (
                 !(
                   await tx.query(
-                    "SELECT 1 FROM pricing_phases WHERE ticket_type_id=$1 AND channel=$2 AND active AND starts_at<=now() AND ends_at>now()",
+                    "SELECT 1 FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND ends_at>now()",
                     [t.id, ch],
                   )
                 ).rows.length
@@ -620,6 +771,17 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         return {};
       }
       case "update_event": {
+        if (
+          new Date(new Date(c.starts_at).getTime() - 5 * 3600000)
+            .toISOString()
+            .slice(0, 10) !==
+          new Date(new Date(c.admission_starts_at).getTime() - 5 * 3600000)
+            .toISOString()
+            .slice(0, 10)
+        )
+          fail(
+            "La apertura de puertas debe estar en la fecha de inicio del evento",
+          );
         await permit(tx, a, c.event_id, "manage");
         const e = await lockEvent(tx, c.event_id);
         await expire(tx, e.id);
@@ -712,7 +874,26 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         await audit(tx, a, "type_created", "ticket_type", t.id);
         return { ticket_type_id: t.id };
       }
+      case "update_phase": {
+        if (new Date(c.ends_at) <= new Date(c.starts_at))
+          fail("El fin de la fase debe ser posterior al inicio");
+        await permit(tx, a, c.event_id, "manage");
+        await lockEvent(tx, c.event_id);
+        const p = await one(
+          tx,
+          "SELECT p.id FROM pricing_phases p JOIN ticket_types t ON t.id=p.ticket_type_id WHERE p.id=$1 AND t.event_id=$2",
+          [c.phase_id, c.event_id],
+        );
+        await tx.query(
+          "UPDATE pricing_phases SET name=$2,channel=$3,price_cop=$4,starts_at=$5,ends_at=$6 WHERE id=$1",
+          [p.id, c.name, c.channel, c.price_cop, c.starts_at, c.ends_at],
+        );
+        await audit(tx, a, "phase_updated", "pricing_phase", p.id);
+        return {};
+      }
       case "add_phase": {
+        if (new Date(c.ends_at) <= new Date(c.starts_at))
+          fail("El fin de la fase debe ser posterior al inicio");
         await permit(tx, a, c.event_id, "manage");
         await lockEvent(tx, c.event_id);
         await one(
@@ -1100,17 +1281,30 @@ export async function ticketDocument(
   orderId: string,
   share?: string,
 ) {
+  const { expireTransfers } = await import("./transfers");
+  await expireTransfers(db);
   return db.transaction(async (tx) => {
     const o = await one(tx, "SELECT * FROM orders WHERE id=$1", [orderId]);
-    if (!(share && o.share_hash && hash(share) === o.share_hash)) {
-      if (!a) fail("Inicia sesión para ver tus entradas", 401);
-      await orderPermit(tx, a, orderId);
-    }
+    const shared = !!(share && o.share_hash && hash(share) === o.share_hash);
+    const staff = a ? await can(tx, a, o.event_id, "sell") : false;
+    const owner =
+      a &&
+      (
+        await tx.query(
+          "SELECT 1 FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1 AND t.owner_user_id=$2",
+          [orderId, a.id],
+        )
+      ).rows.length > 0;
+    if (!shared && !staff && o.buyer_user_id !== a?.id && !owner)
+      fail(
+        "No tienes permiso: inicia sesión con la cuenta titular para ver tus entradas",
+        a ? 403 : 401,
+      );
     const e = await one(tx, "SELECT * FROM events WHERE id=$1", [o.event_id]);
     const tickets = (
       await tx.query(
-        "SELECT t.*,i.type_name FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1 ORDER BY t.event_sequence",
-        [o.id],
+        "SELECT t.*,i.type_name FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1 AND ($2::boolean OR t.owner_user_id=$3 OR ($4::boolean AND (t.owner_user_id=$5 OR t.owner_user_id IS NULL))) AND NOT EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') ORDER BY t.event_sequence",
+        [o.id, staff, a?.id ?? null, shared, o.buyer_user_id],
       )
     ).rows.map((t) => ({
       id: t.id,
@@ -1125,13 +1319,20 @@ export async function ticketDocument(
         id: o.id,
         status: o.status,
         total_cop: o.total_cop,
-        buyer_name: o.buyer_name,
+        buyer_name:
+          staff || o.buyer_user_id === a?.id || shared
+            ? o.buyer_name
+            : "Titular de entradas",
       },
       event: e,
       tickets,
-      share: decrypt(
-        o.share_encrypted ?? fail("Las entradas aún no se han emitido", 409),
-      ),
+      share:
+        !staff && a && o.buyer_user_id !== a.id
+          ? ""
+          : decrypt(
+              o.share_encrypted ??
+                fail("Las entradas aún no se han emitido", 409),
+            ),
     };
   });
 }

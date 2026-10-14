@@ -35,8 +35,11 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
     .fill("Dirección ficticia");
   const local = (ms: number) =>
     new Date(ms - 5 * 3600000).toISOString().slice(0, 16);
-  for (const label of ["Inicio del evento", "Apertura de puertas"])
+  for (const label of ["Inicio del evento"])
     await page.getByLabel(label).fill(local(Date.now()));
+  await page
+    .getByLabel("Apertura de puertas")
+    .fill(local(Date.now()).slice(11));
   for (const label of ["Fin del evento", "Cierre de puertas"])
     await page.getByLabel(label).fill(local(Date.now() + 86400000));
   await page.getByRole("button", { name: "Crear borrador" }).click();
@@ -95,10 +98,10 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
     await page.getByLabel("Nombre de la fase").fill(`Precio ${channel}`);
     await page.getByLabel("Precio en COP").fill("10000");
     await page
-      .getByLabel("Inicio · Bogotá", { exact: true })
+      .getByLabel("Inicio · Colombia", { exact: true })
       .fill(local(Date.now() - 3600000));
     await page
-      .getByLabel("Fin · Bogotá", { exact: true })
+      .getByLabel("Fin · Colombia", { exact: true })
       .fill(local(Date.now() + 86400000));
     await page.getByRole("button", { name: "Agregar fase" }).click();
     await expect(page.locator("table").nth(1)).toContainText(
@@ -170,7 +173,7 @@ test("organizador crea dos fiestas y configura localidad, fases y personal", asy
     await page.getByLabel("Fin del evento").fill(local(end));
     await page
       .getByLabel("Apertura de puertas")
-      .fill(local(new Date(Date.now() - 60000)));
+      .fill(local(new Date(Date.now() - 60000)).slice(11));
     await page.getByLabel("Cierre de puertas").fill(local(end));
     await page.getByRole("button", { name: "Crear borrador" }).click();
     await expect(page.locator("h1")).toHaveText(title);
@@ -186,9 +189,9 @@ test("organizador crea dos fiestas y configura localidad, fases y personal", asy
         .fill(channel === "web" ? "Preventa" : "Taquilla");
       await page.getByLabel("Precio en COP").fill("20000");
       await page
-        .getByLabel("Inicio · Bogotá", { exact: true })
+        .getByLabel("Inicio · Colombia", { exact: true })
         .fill(local(new Date(Date.now() - 60000)));
-      await page.getByLabel("Fin · Bogotá", { exact: true }).fill(local(end));
+      await page.getByLabel("Fin · Colombia", { exact: true }).fill(local(end));
       await page.getByRole("button", { name: "Agregar fase" }).click();
       await expect(page.locator("table").nth(1)).toContainText(
         channel === "web" ? "Preventa" : "Taquilla",
@@ -313,12 +316,6 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
     .click();
   await page.getByRole("checkbox", { name: /Autorizo el uso/ }).check();
   await page
-    .getByLabel("Género — General 1", { exact: true })
-    .selectOption("female");
-  await page
-    .getByLabel("Rango de edad — General 1", { exact: true })
-    .selectOption("25_34");
-  await page
     .getByLabel("Género — General 2", { exact: true })
     .selectOption("male");
   await page
@@ -365,6 +362,7 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
     page.getByText("El PDF contiene todas tus entradas", { exact: false }),
   ).toBeVisible();
   await page.goto("/account/tickets");
+  await page.getByText("Historial de mis compras", { exact: true }).click();
   await expect(page.locator("table")).toContainText("Confirmada");
 });
 test("protege API, exportación y CSRF", async ({ page }) => {

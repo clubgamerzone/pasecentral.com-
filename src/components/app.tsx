@@ -44,6 +44,9 @@ import { EventPurchase, Tickets, Checkout } from "./buyer";
 import { Recovery } from "./recovery";
 import { MyProfile, AcceptInvitation } from "./account";
 import { AnalyticsPanel, initialAnalyticsFilters } from "./analytics";
+import { MoneyInput } from "./enhanced-fields";
+import { genders, ageBands } from "@/lib/demographics";
+import { TicketWallet, Organizations } from "./ticket-wallet";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -81,6 +84,8 @@ export const day = (v: string | Date) =>
     month: "short",
   });
 const names: Record<string, string> = {
+  accepted: "Aceptada",
+  declined: "Rechazada",
   published: "En venta",
   draft: "Borrador",
   sales_closed: "Ventas cerradas",
@@ -143,6 +148,20 @@ export function Field({
         ) : (
           children
         )
+      ) : [
+          "price_cop",
+          "amount_cop",
+          "opening_cash_cop",
+          "declared_cash_cop",
+        ].includes(name) ? (
+        <MoneyInput
+          id={fieldId}
+          name={name}
+          value={value ?? props.defaultValue}
+          required={required}
+          disabled={props.disabled}
+          readOnly={props.readOnly}
+        />
       ) : (
         <input
           id={fieldId}
@@ -197,7 +216,12 @@ export function App() {
       async function initialize() {
         const fragment = new URLSearchParams(window.location.hash.slice(1));
         let destination: string | undefined;
-        if (fragment.get("type") === "recovery" || fragment.has("error")) {
+        if (
+          fragment.has("access_token") ||
+          fragment.get("type") === "recovery" ||
+          fragment.has("error")
+        ) {
+          const recovering = fragment.get("type") === "recovery";
           const access_token = fragment.get("access_token"),
             refresh_token = fragment.get("refresh_token");
           // Clear credentials before navigating or making any server request.
@@ -206,7 +230,9 @@ export function App() {
             "",
             window.location.pathname + window.location.search,
           );
-          destination = "/forgot-password?invalid=1";
+          destination = recovering
+            ? "/forgot-password?invalid=1"
+            : "/login?confirmation=invalid";
           if (access_token && refresh_token) {
             try {
               const response = await fetch("/api/auth", {
@@ -218,7 +244,10 @@ export function App() {
                   refresh_token,
                 }),
               });
-              if (response.ok) destination = "/reset-password";
+              if (response.ok)
+                destination = recovering
+                  ? "/reset-password"
+                  : "/account/profile?confirmed=1";
             } catch {
               /* A network error never authenticates a recovery session. */
             }
@@ -348,7 +377,7 @@ export function App() {
   else if (path === "/invite") screen = <AcceptInvitation />;
   else if (path === "/account/profile") screen = <MyProfile />;
   else if (path === "/account" || path === "/account/tickets")
-    screen = <Orders customer />;
+    screen = <TicketWallet />;
   else if (path.startsWith("/account/orders/"))
     screen = <Orders customer orderId={path.split("/")[3]} />;
   else if (path === "/admin" && manage) screen = <Dashboard />;
@@ -362,6 +391,8 @@ export function App() {
     );
   else if (path === "/admin/reports" && manage) screen = <Reports />;
   else if (path === "/admin/users" && manage) screen = <UserManagement />;
+  else if (path === "/admin/organizations" && data.permissions.admin)
+    screen = <Organizations />;
   else if (path === "/box-office" && data.permissions.sell.length)
     screen = <BoxOffice />;
   else if (path === "/box-office/cash-session" && data.permissions.sell.length)
@@ -414,6 +445,14 @@ export function App() {
             </>
           )}
           <div className="nav-label">Descubre y disfruta</div>
+          {data.permissions.admin && (
+            <nav className="nav">
+              <a href="/admin/organizations">
+                <Users />
+                Organizaciones
+              </a>
+            </nav>
+          )}
           <nav className="nav">
             {menu.map((m) => (
               <a
@@ -565,6 +604,23 @@ function Login() {
     <section className="panel login-panel">
       <div className="eyebrow">Bienvenido a Pase Central</div>
       <h1>{signup ? "Crea tu cuenta" : "Todo listo para entrar"}</h1>
+      {typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("account") ===
+          "deleted" && (
+          <p className="notice">
+            Tu cuenta fue eliminada. Las entradas propias sin usar quedaron
+            anuladas; no se realizó un reembolso automático.
+          </p>
+        )}
+      {typeof window !== "undefined" &&
+        new URLSearchParams(window.location.search).get("confirmation") ===
+          "invalid" && (
+          <p role="alert" className="notice">
+            El enlace de confirmación venció o ya fue utilizado. Intenta iniciar
+            sesión con la cuenta que creaste; si tu correo aún no está
+            confirmado, solicita ayuda al administrador.
+          </p>
+        )}
       <p>Administra tus noches. Guarda tus entradas. Vive el momento.</p>
       {data.demo ? (
         <>
@@ -593,12 +649,75 @@ function Login() {
             login({
               action: signup ? "signup" : "login",
               ...Object.fromEntries(new FormData(e.currentTarget)),
+              ...(signup
+                ? {
+                    terms_accepted: true,
+                    age_band:
+                      String(
+                        new FormData(e.currentTarget).get("age_band") || "",
+                      ) || null,
+                  }
+                : {}),
             });
           }}
           className="section-stack"
           style={{ marginTop: 25 }}
         >
           {signup && <Field name="name" label="Nombre completo" />}
+          {signup && (
+            <>
+              <label className="field">
+                <span>Género</span>
+                <select
+                  name="gender"
+                  aria-label="Género"
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    Selecciona una opción
+                  </option>
+                  {Object.entries(genders).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Rango de edad (opcional)</span>
+                <select
+                  name="age_band"
+                  aria-label="Rango de edad (opcional)"
+                  defaultValue=""
+                >
+                  <option value="">Prefiero no indicar edad</option>
+                  {Object.entries(ageBands).map(([key, label]) => (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="helper">
+                Información declarada para estadísticas de organización. Puedes
+                elegir “Prefiero no responder” y omitir la edad. No pedimos
+                documentos ni fecha de nacimiento.
+              </p>
+              <label className="inline-check">
+                <input type="checkbox" required />
+                Acepto las{" "}
+                <a href="/terms" target="_blank" rel="noreferrer">
+                  condiciones de creación de cuenta
+                </a>{" "}
+                y el{" "}
+                <a href="/privacy" target="_blank" rel="noreferrer">
+                  aviso de privacidad
+                </a>
+                , incluido el uso estadístico de los datos declarados.
+              </label>
+            </>
+          )}
           <Field
             name="email"
             type="email"
@@ -690,7 +809,7 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
                 data.types.some(
                   (t) => t.id === p.ticket_type_id && t.event_id === e.id,
                 ) &&
-                p.channel === "web" &&
+                ["web", "both"].includes(p.channel) &&
                 p.active &&
                 new Date(p.starts_at) <= new Date() &&
                 new Date(p.ends_at) > new Date(),

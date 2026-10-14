@@ -10,6 +10,8 @@ export interface EmailAdapter {
   ): Promise<void>;
 }
 export async function deliver(db: DB, adapter?: EmailAdapter) {
+  const { expireTransfers } = await import("./transfers");
+  await expireTransfers(db);
   let processed = 0;
   for (let n = 0; n < 20; n++) {
     const job = await db.transaction(async (tx) => {
@@ -32,15 +34,19 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
         "SELECT buyer_email,share_encrypted FROM orders WHERE id=$1",
         [job.order_id],
       );
-      const link = `${appUrl()}/tickets/${job.order_id}#${decrypt(o.share_encrypted)}`;
+      const link = job.recipient_user_id
+        ? `${appUrl()}/account/tickets`
+        : `${appUrl()}/tickets/${job.order_id}#${decrypt(o.share_encrypted)}`;
       const message: TicketEmail = job.email_payload_encrypted
         ? JSON.parse(decrypt(job.email_payload_encrypted))
         : await ticketEmail(
             await ticketDocument(
               db,
-              null,
+              job.recipient_user_id
+                ? { id: job.recipient_user_id, name: "Titular" }
+                : null,
               job.order_id,
-              decrypt(o.share_encrypted),
+              job.recipient_user_id ? undefined : decrypt(o.share_encrypted),
             ),
             link,
           );
@@ -52,7 +58,7 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
       if (adapter) {
         await adapter.send({
           ...message,
-          to: o.buyer_email,
+          to: job.recipient_email ?? o.buyer_email,
           link,
           jobId: job.id,
         });
@@ -62,7 +68,7 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
           `.local/outbox/${job.id}.json`,
           JSON.stringify(
             {
-              to: o.buyer_email,
+              to: job.recipient_email ?? o.buyer_email,
               link,
               ...message,
               subject: `${message.subject} (DEMO)`,
@@ -82,7 +88,7 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
           },
           body: JSON.stringify({
             from: required("EMAIL_FROM"),
-            to: [o.buyer_email],
+            to: [job.recipient_email ?? o.buyer_email],
             ...message,
           }),
           signal: AbortSignal.timeout(15000),
@@ -102,5 +108,11 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
     }
   }
   const { deliverInvitations } = await import("./invitations");
-  return { processed, invitations: await deliverInvitations(db) };
+  const { deliverAccountNotifications } =
+    await import("./account-notifications");
+  return {
+    processed,
+    invitations: await deliverInvitations(db),
+    notifications: await deliverAccountNotifications(db),
+  };
 }

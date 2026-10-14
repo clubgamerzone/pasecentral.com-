@@ -27,6 +27,17 @@ export const preservedTables = [
   "team_invitations",
 ] as const;
 export async function resetSnapshot(tx: Tx, expectedIds: string[]) {
+  if (
+    (
+      await tx.query(
+        "SELECT 1 FROM ticket_transfer_items i JOIN tickets t ON t.id=i.ticket_id WHERE t.event_id=ANY($1::uuid[]) LIMIT 1",
+        [expectedIds],
+      )
+    ).rows.length
+  )
+    fail(
+      "Hay historial de regalos o transferencias. Esta limpieza de fixtures no debe borrarlo.",
+    );
   const events = (await tx.query("SELECT * FROM events ORDER BY id")).rows;
   if (
     !events.length ||

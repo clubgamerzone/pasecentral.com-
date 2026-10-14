@@ -25,6 +25,7 @@ export function EventPurchase({ slug }: { slug: string }) {
     [key] = useState(() => crypto.randomUUID());
   const [people, setPeople] = useState<Record<string, Attendee>>({}),
     [consent, setConsent] = useState(false);
+  const [gift, setGift] = useState(false);
   const e = data.events.find(
     (e) => e.slug === slug && e.status === "published",
   );
@@ -35,7 +36,7 @@ export function EventPurchase({ slug }: { slug: string }) {
       p: data.phases.find(
         (p) =>
           p.ticket_type_id === t.id &&
-          p.channel === "web" &&
+          ["web", "both"].includes(p.channel) &&
           p.active &&
           new Date(p.starts_at) <= new Date() &&
           new Date(p.ends_at) > new Date(),
@@ -71,7 +72,7 @@ export function EventPurchase({ slug }: { slug: string }) {
             <h1>{e.title}</h1>
             <div className="card-meta">
               <CalendarDays />
-              {when(e.starts_at)} · Bogotá
+              {when(e.starts_at)} · Colombia
             </div>
             <div className="card-meta">
               <MapPin />
@@ -97,6 +98,12 @@ export function EventPurchase({ slug }: { slug: string }) {
           <h2>Elige tus entradas</h2>
           <p className="helper">
             {e.available} cupos disponibles · precios en COP
+          </p>
+          <p className="notice">
+            {e.minimum_age > 0
+              ? `Edad mínima de ingreso: ${e.minimum_age} años.`
+              : "Evento para todas las edades."}{" "}
+            Revisa las condiciones del evento.
           </p>
           {prices.map(({ t, p }) => (
             <div className="buy-line" key={t.id}>
@@ -155,6 +162,11 @@ export function EventPurchase({ slug }: { slug: string }) {
                     items: attendeeItems(quantities, people, consent),
                     demographics_consent: consent,
                     ...formValues(ev.currentTarget),
+                    is_gift: gift,
+                    admission_age_confirmed:
+                      new FormData(ev.currentTarget).get(
+                        "admission_age_confirmed",
+                      ) === "on",
                     idempotency_key: key,
                   },
                   "Cupo reservado temporalmente",
@@ -173,20 +185,68 @@ export function EventPurchase({ slug }: { slug: string }) {
                   type="email"
                   label="Correo para entrega"
                   value={data.actor.email}
+                  readOnly
                 />
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={gift}
+                    onChange={(e) => setGift(e.target.checked)}
+                  />
+                  Es un regalo
+                </label>
+                {gift && (
+                  <>
+                    <Field
+                      name="gift_email"
+                      type="email"
+                      label="Correo del destinatario del regalo"
+                    />
+                    <p className="helper">
+                      El destinatario debe iniciar sesión o crear una cuenta con
+                      ese correo y aceptar en Mis entradas. Tiene 7 días desde
+                      la confirmación de la compra; si no acepta, las entradas
+                      vuelven a ti. No enviamos QR utilizables antes de aceptar.
+                    </p>
+                  </>
+                )}
                 <Field
                   name="buyer_phone"
                   label="Teléfono (opcional)"
                   required={false}
                 />
-                <AttendeeFields
-                  types={types}
-                  quantities={quantities}
-                  people={people}
-                  onChange={setPeople}
-                  consent={consent}
-                  onConsent={setConsent}
-                />
+                {!gift &&
+                  Object.values(quantities).reduce((s, n) => s + n, 0) > 1 && (
+                    <AttendeeFields
+                      skipFirst
+                      types={types}
+                      quantities={quantities}
+                      people={people}
+                      onChange={setPeople}
+                      consent={consent}
+                      onConsent={setConsent}
+                    />
+                  )}
+                {!gift && (
+                  <p className="helper">
+                    Tu propia entrada usa el género y la edad opcional de Mi
+                    perfil. Los datos opcionales de acompañantes se usan para
+                    organización y análisis; no pedimos nombres, documentos ni
+                    fechas de nacimiento.
+                  </p>
+                )}
+                {!gift && e.minimum_age > 0 && (
+                  <label className="inline-check">
+                    <input
+                      type="checkbox"
+                      name="admission_age_confirmed"
+                      required
+                    />
+                    Confirmo que quienes usarán estas entradas cumplirán la edad
+                    mínima de {e.minimum_age} años en la fecha del evento. Se
+                    puede verificar en el ingreso.
+                  </label>
+                )}
                 <label className="inline-check">
                   <input type="checkbox" required />
                   Acepto las{" "}
@@ -283,7 +343,9 @@ export function Checkout({ orderId }: { orderId: string | null }) {
           {o.status === "refunded"
             ? "Devolución registrada"
             : confirmed
-              ? "Tus entradas están listas"
+              ? o.is_gift
+                ? "Tu compra para regalo fue confirmada"
+                : "Tus entradas están listas"
               : o.status === "needs_review"
                 ? "Pago recibido, entradas pendientes de revisión"
                 : expired
@@ -328,9 +390,12 @@ export function Checkout({ orderId }: { orderId: string | null }) {
         )}
         <div className="form-actions">
           {confirmed ? (
-            <a className="btn primary" href={`/tickets/${o.id}`}>
+            <a
+              className="btn primary"
+              href={o.is_gift ? "/account/tickets" : `/tickets/${o.id}`}
+            >
               <Ticket />
-              Ver mis entradas
+              {o.is_gift ? "Consultar regalo" : "Ver mis entradas"}
             </a>
           ) : o.status === "pending_payment" && !expired ? (
             data.demo ? (
@@ -527,6 +592,20 @@ export function Tickets({ orderId }: { orderId: string }) {
       </>
     );
   if (!doc) return <Empty>Preparando tus entradas…</Empty>;
+  if (!doc.tickets.length)
+    return (
+      <>
+        <Heading title="Estas entradas no están disponibles a tu nombre" />
+        <div className="notice">
+          Pueden estar pendientes de aceptación, transferidas o regaladas.
+          Consulta su estado en Mis entradas; solo se muestran los QR que
+          corresponden a tu titularidad.
+        </div>
+        <a href="/account/tickets" className="btn">
+          Ver Mis entradas
+        </a>
+      </>
+    );
   const canPrint = data.permissions.sell.includes(doc.event.id);
   return (
     <>
@@ -604,7 +683,9 @@ export function Tickets({ orderId }: { orderId: string }) {
           <article className="ticket" key={t.id}>
             <div className="ticket-brand">Pase Central · Vive el momento</div>
             <h3>{doc.event.title}</h3>
-            <p style={{ fontSize: 11 }}>{when(doc.event.starts_at)} · Bogotá</p>
+            <p style={{ fontSize: 11 }}>
+              {when(doc.event.starts_at)} · Colombia
+            </p>
             <p style={{ fontSize: 11 }}>{doc.event.venue_name}</p>
             <div style={{ margin: "12px 0" }}>
               <b>{t.type_name}</b> · <Badge status={t.status} />

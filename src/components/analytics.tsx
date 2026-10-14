@@ -331,7 +331,7 @@ export function AnalyticsPanel({
         </div>
         <p className="helper" style={{ marginTop: 16 }}>
           Año según la fecha del evento. Ventas según su confirmación, en hora
-          de Bogotá. Los cupos muestran disponibilidad actual. Devoluciones
+          de Colombia. Los cupos muestran disponibilidad actual. Devoluciones
           corresponden a las órdenes de venta incluidas; no es utilidad ni
           conciliación bancaria.
         </p>
@@ -546,7 +546,7 @@ export function AnalyticsPanel({
           />
           <AnalyticsTable
             title="Evolución diaria de ventas"
-            description="Días con confirmaciones en hora de Bogotá; no se usa la fecha inicial de la reserva."
+            description="Días con confirmaciones en hora de Colombia; no se usa la fecha inicial de la reserva."
             rows={r.timeline}
             columns={[{ key: "label", label: "Fecha" }, ...columns.slice(1)]}
             query={query}
@@ -614,6 +614,7 @@ export function AnalyticsPanel({
                     {(
                       {
                         accepted: "Ingreso aceptado",
+                        pending_transfer: "Entrega pendiente de aceptación",
                         already_used: "Entrada ya utilizada",
                         cancelled: "Entrada anulada",
                         wrong_event: "Otro evento",

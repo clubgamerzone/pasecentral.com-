@@ -7,6 +7,7 @@ export function attendeeItems(
   consent: boolean,
 ) {
   return Object.entries(quantities)
+    .sort(([a], [b]) => a.localeCompare(b))
     .filter(([, n]) => n > 0)
     .map(([ticket_type_id, quantity]) => ({
       ticket_type_id,
@@ -32,6 +33,7 @@ export function AttendeeFields({
   onChange,
   consent,
   onConsent,
+  skipFirst = false,
 }: {
   types: Row[];
   quantities: Record<string, number>;
@@ -39,6 +41,7 @@ export function AttendeeFields({
   onChange: (p: Record<string, Attendee>) => void;
   consent: boolean;
   onConsent: (v: boolean) => void;
+  skipFirst?: boolean;
 }) {
   return (
     <details style={{ margin: "20px 0" }}>
@@ -62,73 +65,89 @@ export function AttendeeFields({
       </label>
       {consent && (
         <div className="section-stack" style={{ marginTop: 16 }}>
-          {types.flatMap((t) =>
-            Array.from({ length: quantities[t.id] ?? 0 }, (_, n) => {
-              const key = `${t.id}:${n}`,
-                person = people[key] ?? { gender: null, age_band: null };
-              return (
-                <fieldset key={key}>
-                  <legend>
-                    {t.name} · Asistente {n + 1}
-                  </legend>
-                  <div className="form-grid">
-                    <label className="field">
-                      <span>
-                        Género — {t.name} {n + 1}
-                      </span>
-                      <select
-                        aria-label={`Género — ${t.name} ${n + 1}`}
-                        value={person.gender ?? ""}
-                        onChange={(ev) =>
-                          onChange({
-                            ...people,
-                            [key]: {
-                              ...person,
-                              gender: (ev.target.value ||
-                                null) as Attendee["gender"],
-                            },
-                          })
-                        }
-                      >
-                        <option value="">Sin dato</option>
-                        {Object.entries(genders).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>
-                        Rango de edad — {t.name} {n + 1}
-                      </span>
-                      <select
-                        aria-label={`Rango de edad — ${t.name} ${n + 1}`}
-                        value={person.age_band ?? ""}
-                        onChange={(ev) =>
-                          onChange({
-                            ...people,
-                            [key]: {
-                              ...person,
-                              age_band: (ev.target.value ||
-                                null) as Attendee["age_band"],
-                            },
-                          })
-                        }
-                      >
-                        <option value="">Sin dato</option>
-                        {Object.entries(ageBands).map(([value, label]) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </fieldset>
-              );
-            }),
-          )}
+          {types
+            .slice()
+            .sort((a, b) => a.id.localeCompare(b.id))
+            .flatMap((t) =>
+              Array.from({ length: quantities[t.id] ?? 0 }, (_, n) => {
+                const key = `${t.id}:${n}`,
+                  person = people[key] ?? { gender: null, age_band: null };
+                if (
+                  skipFirst &&
+                  n === 0 &&
+                  t.id ===
+                    types
+                      .filter((t) => quantities[t.id] > 0)
+                      .sort((a, b) => a.id.localeCompare(b.id))[0]?.id
+                )
+                  return (
+                    <p className="helper" key={key}>
+                      {t.name} · Asistente 1: tus datos se toman de Mi perfil.
+                    </p>
+                  );
+                return (
+                  <fieldset key={key}>
+                    <legend>
+                      {t.name} · Asistente {n + 1}
+                    </legend>
+                    <div className="form-grid">
+                      <label className="field">
+                        <span>
+                          Género — {t.name} {n + 1}
+                        </span>
+                        <select
+                          aria-label={`Género — ${t.name} ${n + 1}`}
+                          value={person.gender ?? ""}
+                          onChange={(ev) =>
+                            onChange({
+                              ...people,
+                              [key]: {
+                                ...person,
+                                gender: (ev.target.value ||
+                                  null) as Attendee["gender"],
+                              },
+                            })
+                          }
+                        >
+                          <option value="">Sin dato</option>
+                          {Object.entries(genders).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>
+                          Rango de edad — {t.name} {n + 1}
+                        </span>
+                        <select
+                          aria-label={`Rango de edad — ${t.name} ${n + 1}`}
+                          value={person.age_band ?? ""}
+                          onChange={(ev) =>
+                            onChange({
+                              ...people,
+                              [key]: {
+                                ...person,
+                                age_band: (ev.target.value ||
+                                  null) as Attendee["age_band"],
+                              },
+                            })
+                          }
+                        >
+                          <option value="">Sin dato</option>
+                          {Object.entries(ageBands).map(([value, label]) => (
+                            <option key={value} value={value}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  </fieldset>
+                );
+              }),
+            )}
         </div>
       )}
     </details>

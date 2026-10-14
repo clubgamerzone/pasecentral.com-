@@ -26,7 +26,7 @@ export const USERS = [
     name: "Comprador demo",
     role: "customer",
   },
-];
+].map((u) => ({ ...u, email: `${u.role}@example.test`, email_verified: true }));
 export async function seed(db: DB) {
   await db.transaction(async (tx) => {
     if ((await tx.query("SELECT id FROM organizations LIMIT 1")).rows.length)
@@ -55,7 +55,7 @@ export async function seed(db: DB) {
     ].entries()) {
       const id = `00000000-0000-4000-8000-00000000000${i + 2}`;
       await tx.query(
-        `INSERT INTO events(id,organization_id,slug,title,description,venue_name,address,starts_at,ends_at,admission_starts_at,admission_ends_at,capacity,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,now()+interval '7 days',now()+interval '8 days',now()-interval '1 day',now()+interval '8 days',200,'published',$8)`,
+        `INSERT INTO events(id,organization_id,slug,title,description,venue_name,address,starts_at,ends_at,admission_starts_at,admission_ends_at,capacity,status,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,now(),now()+interval '8 days',now(),now()+interval '8 days',200,'published',$8)`,
         [
           id,
           DEMO_ORG,
@@ -67,6 +67,7 @@ export async function seed(db: DB) {
           USERS[0].id,
         ],
       );
+      await tx.query("UPDATE events SET minimum_age=0 WHERE id=$1", [id]);
       for (const u of USERS.slice(2, 4))
         await tx.query("INSERT INTO event_staff VALUES($1,$2,$3,true)", [
           id,

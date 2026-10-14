@@ -7,6 +7,7 @@ const auth = vi.hoisted(() => ({
   exchangeCodeForSession: vi.fn(),
   verifyOtp: vi.fn(),
   setSession: vi.fn(),
+  signUp: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({
   supabase: async () => ({ auth }),
@@ -31,6 +32,55 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("recuperación de cuenta", () => {
+  it("confirma registro con datos opcionales y retorno al perfil, sin conceder roles de metadata", async () => {
+    auth.signUp.mockResolvedValue({ error: null });
+    const r = await POST(
+      request({
+        action: "signup",
+        email: "test@example.test",
+        password: "fictional-password-123",
+        name: "Ficticio",
+        gender: "prefer_not_to_say",
+        terms_accepted: true,
+        role: "platform_admin",
+      }),
+    );
+    expect(r.status).toBe(200);
+    expect(auth.signUp.mock.calls[0][0].options.emailRedirectTo).toBe(
+      `${base}/auth/confirm?type=signup`,
+    );
+    expect(auth.signUp.mock.calls[0][0].options.data).not.toHaveProperty(
+      "role",
+    );
+    expect(
+      (
+        await POST(
+          request({
+            action: "signup",
+            email: "test@example.test",
+            password: "fictional-password-123",
+            name: "Ficticio",
+            gender: "female",
+            terms_accepted: false,
+          }),
+        )
+      ).status,
+    ).toBe(400);
+  });
+  it("signup e invite válidos abren perfil en el servidor y eliminan credenciales de la URL", async () => {
+    auth.verifyOtp.mockResolvedValue({ error: null });
+    for (const type of ["signup", "invite"]) {
+      const r = await GET(
+        new Request(
+          `${base}/auth/confirm?token_hash=test-token&type=${type}&next=https://external.test`,
+        ),
+      );
+      expect(r.headers.get("location")).toBe(
+        `${base}/account/profile?confirmed=1`,
+      );
+      expect(r.headers.get("cache-control")).toContain("no-store");
+    }
+  });
   it("rechaza una credencial de enlace implícito no válida", async () => {
     auth.setSession.mockResolvedValue({ error: new Error("invalid") });
     const r = await POST(
@@ -110,7 +160,7 @@ describe("recuperación de cuenta", () => {
     expect(r.status).toBe(200);
     expect(auth.resetPasswordForEmail).toHaveBeenCalledWith(
       "test@example.test",
-      { redirectTo: `${base}/auth/confirm` },
+      { redirectTo: `${base}/auth/confirm?type=recovery` },
     );
     expect((await r.json()).message).toContain("Si existe una cuenta");
   });
@@ -135,11 +185,15 @@ describe("recuperación de cuenta", () => {
     expect(r.headers.get("location")).toBe(`${base}/reset-password`);
     expect(r.headers.get("referrer-policy")).toBe("no-referrer");
   });
-  it("no intercambia tokens sin tipo recovery", async () => {
+  it("no intercambia tokens con tipo desconocido", async () => {
     const r = await GET(
-      new Request(`${base}/auth/confirm?token_hash=test-token&type=invite`),
+      new Request(
+        `${base}/auth/confirm?token_hash=test-token&type=unsupported`,
+      ),
     );
     expect(auth.verifyOtp).not.toHaveBeenCalled();
-    expect(r.headers.get("location")).toBe(`${base}/forgot-password?invalid=1`);
+    expect(r.headers.get("location")).toBe(
+      `${base}/login?confirmation=invalid`,
+    );
   });
 });
