@@ -94,3 +94,6 @@ Consultar [EVENT_EDITING.md](EVENT_EDITING.md) para editar datos/aforo desde Eve
 ## Invitar trabajadores
 
 Equipo y usuarios → Invitar a tu equipo: introducir nombre/correo, elegir Cajero / taquilla (por defecto) y marcar uno o varios eventos. También permite administrador global, organizador por evento y acceso. El trabajador crea/inicia su propia cuenta y acepta con correo confirmado. Los compradores se registran normalmente y compran sin invitaciones. Las antiguas invitaciones de comprador pendientes se revocan al aplicar migración 006; no se borran cuentas ni compras. Detalles: PROFILE_TEAM_SETUP.md.
+## Reinicio excepcional de ensayos
+
+Guía privada: TEST_DATA_RESET.md. No usar DELETE/TRUNCATE indiscriminado ni reiniciar usuarios; scripts/reset-test-data.ts exige entorno staging/sandbox, lista exacta de todos los eventos DEMO y respaldo cifrado. No corre automáticamente al publicar. Eliminar prueba no activa pagos comerciales. Asignar trabajadores a los eventos nuevos; invitaciones globales/cuentas permanecen.

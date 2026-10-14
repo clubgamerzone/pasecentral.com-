@@ -8,6 +8,7 @@ const local = (v: string) =>
 export function EventDetails({ event: e }: { event: Row }) {
   const { run, busy, refresh, notify } = useApp();
   const [uploading, setUploading] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<string | null>(null);
   async function images(files: File[]) {
     setUploading(true);
     try {
@@ -32,7 +33,6 @@ export function EventDetails({ event: e }: { event: Row }) {
     }
   }
   async function remove(id: string) {
-    if (!confirm("¿Eliminar esta imagen del evento?")) return;
     setUploading(true);
     try {
       const response = await fetch(`/api/event-images/${id}`, {
@@ -185,7 +185,7 @@ export function EventDetails({ event: e }: { event: Row }) {
                   type="button"
                   className="btn danger"
                   disabled={busy || uploading}
-                  onClick={() => remove(image.id)}
+                  onClick={() => setPendingRemove(image.id)}
                 >
                   Eliminar imagen {index + 1}
                 </button>
@@ -193,6 +193,45 @@ export function EventDetails({ event: e }: { event: Row }) {
             </div>
           ))}
         </div>
+        {pendingRemove && (
+          <div className="image-confirm-backdrop">
+            <section
+              className="panel"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="remove-image-title"
+              aria-describedby="remove-image-description"
+            >
+              <h3 id="remove-image-title">Eliminar imagen del evento</h3>
+              <p id="remove-image-description" style={{ margin: "16px 0" }}>
+                La foto se retirará de la portada y galería. ¿Quieres
+                eliminarla?
+              </p>
+              <div className="buttons">
+                <button
+                  className="btn"
+                  type="button"
+                  autoFocus
+                  onClick={() => setPendingRemove(null)}
+                >
+                  Cancelar eliminación
+                </button>
+                <button
+                  className="btn danger"
+                  type="button"
+                  disabled={uploading || busy}
+                  onClick={() => {
+                    const id = pendingRemove;
+                    setPendingRemove(null);
+                    void remove(id);
+                  }}
+                >
+                  Eliminar imagen
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
       </section>
     </div>
   );

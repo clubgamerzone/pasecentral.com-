@@ -129,8 +129,17 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
     "src",
     initial!,
   );
-  page.once("dialog", (d) => d.accept());
   await page.getByRole("button", { name: "Eliminar imagen 2" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Cancelar eliminación", exact: true })
+    .click();
+  await expect(page.locator(".event-image-grid img")).toHaveCount(2);
+  await page.getByRole("button", { name: "Eliminar imagen 2" }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Eliminar imagen", exact: true })
+    .click();
   await expect(page.locator(".event-image-grid img")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Portada actual" }),

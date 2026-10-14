@@ -1289,3 +1289,17 @@ textarea {
   border-radius: 7px;
   display: block;
 }
+.image-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(10, 25, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.image-confirm-backdrop .panel {
+  width: 100%;
+  max-width: 500px;
+}

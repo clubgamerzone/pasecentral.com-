@@ -15,6 +15,7 @@ import { state } from "../src/lib/state";
 import { hash, decrypt } from "../src/lib/crypto";
 import { normalizeAvatar } from "../src/lib/avatar";
 import { normalizeEventImage } from "../src/lib/event-images";
+import { resetTestData } from "../src/lib/test-reset";
 import sharp from "sharp";
 import { csv } from "../src/lib/csv";
 import { verifyWebhook } from "../src/lib/wompi";
@@ -97,6 +98,42 @@ async function scan(
   });
 }
 describe("Inventario, precios y emisión transaccional", () => {
+  it("limpia ensayos con respaldo obligatorio, preserva cuentas e invitación global y rechaza eventos reales", async () => {
+    await execute(db, admin, {
+      action: "invite_create",
+      name: "Trabajador",
+      email: "worker@example.test",
+      role: "platform_admin",
+      event_ids: [],
+    });
+    await sell(1);
+    const before = (
+      await db.query("SELECT count(*)::int AS count FROM profiles")
+    ).rows[0].count;
+    await expect(
+      resetTestData(db, [e1, e2], async () => {
+        throw new Error("Respaldo falló");
+      }),
+    ).rejects.toThrow("Respaldo falló");
+    expect((await db.query("SELECT id FROM orders")).rows).toHaveLength(1);
+    const result = await resetTestData(db, [e1, e2], async (data) => {
+      expect(data.tickets).toHaveLength(1);
+    });
+    expect(result.accountsPreserved).toBe(before);
+    expect((await db.query("SELECT id FROM events")).rows).toHaveLength(0);
+    expect((await db.query("SELECT id FROM profiles")).rows).toHaveLength(
+      before,
+    );
+    expect(
+      (await db.query("SELECT id FROM team_invitations")).rows,
+    ).toHaveLength(1);
+    expect((await state(db, admin)).permissions.admin).toBe(true);
+    await seed(db);
+    await db.query("UPDATE events SET title='Evento real' WHERE id=$1", [e1]);
+    await expect(resetTestData(db, [e1, e2], async () => {})).rejects.toThrow(
+      "DEMO",
+    );
+  });
   it("comprador reserva sin invitación y no puede ser invitado ni por API ni en PostgreSQL", async () => {
     expect(
       (await db.query("SELECT id FROM team_invitations")).rows,

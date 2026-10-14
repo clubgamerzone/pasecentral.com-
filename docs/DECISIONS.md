@@ -80,3 +80,6 @@ La solicitud del propietario agrega edición de eventos y cupos vendidos/agotado
 ## Invitaciones exclusivamente laborales (2026-10-13)
 
 Comprador es toda persona registrada que compra; no necesita ni recibe invitación. Se retira customer del comando/formulario de invitación, con restricción de base para nuevas escrituras y revocación auditada de pendientes antiguas. Históricos se conservan sin exposición en equipo ni posibilidad de aceptar; cuentas/ventas no se modifican. Roles invitables: platform_admin, organizer por evento, box_office (Cajero / taquilla) y access_staff, con múltiples eventos para los operativos. Ver PROFILE_TEAM_SETUP.md.
+## Reiniciar fixtures conservando identidad (2026-10-13)
+
+El propietario autoriza eliminar registros de ensayo, incluidos registros financieros ficticios, para comenzar eventos propios. Es una limpieza excepcional de staging/sandbox, no una corrección de ventas reales. Se usa CLI privado con lista exacta de eventos DEMO, comprobación de invitaciones dependientes, respaldo cifrado verificado y transacción con bloqueos. Se conservan Auth/perfiles/invitaciones/roles generales, seguridad e integraciones. Se retiran asignaciones a eventos eliminados. Pagos siguen en sandbox hasta activación comercial explícita. Guía: TEST_DATA_RESET.md.
