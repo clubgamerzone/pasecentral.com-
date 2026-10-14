@@ -5,7 +5,7 @@ import { seed, USERS } from "../src/lib/seed";
 import { execute, one, settle, ticketDocument } from "../src/lib/service";
 import { closeAccount, expireTransfers } from "../src/lib/transfers";
 import { state } from "../src/lib/state";
-import { registration } from "../src/lib/account-rules";
+import { registration, ageRangeCanMeetMinimum } from "../src/lib/account-rules";
 import { decrypt } from "../src/lib/crypto";
 let db: DB;
 const e = "00000000-0000-4000-8000-000000000002",
@@ -68,6 +68,44 @@ async function rows(order: string) {
   ).rows;
 }
 describe("Cuentas y titularidad de entradas", () => {
+  it("comprueba mínimos configurables sin asumir edad exacta a partir de rangos", () => {
+    expect(ageRangeCanMeetMinimum("25_34", 35)).toBe(false);
+    expect(ageRangeCanMeetMinimum("18_24", 21)).toBe(true);
+    expect(ageRangeCanMeetMinimum(null, 18)).toBe(true);
+    expect(ageRangeCanMeetMinimum("13_17", 18)).toBe(false);
+  });
+  it("dos aceptaciones simultáneas resuelven una vez y cerrar destinatario pendiente devuelve al remitente", async () => {
+    const order = await reserve(true);
+    const gift = await one(db, "SELECT * FROM ticket_transfers");
+    const outcomes = await Promise.allSettled([
+      execute(db, recipient, {
+        action: "transfer_resolve",
+        transfer_id: gift.id,
+        accept: true,
+      }),
+      execute(db, recipient, {
+        action: "transfer_resolve",
+        transfer_id: gift.id,
+        accept: true,
+      }),
+    ]);
+    expect(outcomes.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((await rows(order))[0].owner_user_id).toBe(recipient.id);
+    const pendingOrder = await reserve(true);
+    await closeAccount(db, recipient);
+    expect((await rows(pendingOrder))[0].owner_user_id).toBe(buyer.id);
+    expect(
+      (await ticketDocument(db, buyer, pendingOrder)).tickets,
+    ).toHaveLength(1);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM ticket_transfers WHERE status='pending'",
+        )
+      ).n,
+    ).toBe(0);
+  });
   it("registro exige género y condiciones, edad opcional; compra fuerza correo verificado y usa perfil sin clonar acompañantes", async () => {
     expect(() =>
       registration.parse({ name: "Test", terms_accepted: true }),

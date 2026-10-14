@@ -3,6 +3,7 @@ import type { DB, Tx, Row } from "./db";
 import { hash, token, encrypt, decrypt } from "./crypto";
 import { demoMode } from "./config";
 import { commands, type Command } from "./validation";
+import { ageRangeCanMeetMinimum } from "./account-rules";
 export type Actor = {
   id: string;
   name: string;
@@ -371,7 +372,7 @@ async function createOrder(
       "SELECT gender,age_band FROM profiles WHERE id=$1",
       [a.id],
     );
-    if (e.minimum_age >= 18 && ["0_5", "6_12", "13_17"].includes(p.age_band))
+    if (!ageRangeCanMeetMinimum(p.age_band, e.minimum_age))
       fail(
         "La edad declarada en tu perfil no cumple la edad mínima del evento",
       );
@@ -605,7 +606,7 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
   return db.transaction(async (tx) => {
     const actorProfile = await one(
       tx,
-      "SELECT deleted_at FROM profiles WHERE id=$1 FOR SHARE",
+      "SELECT deleted_at FROM profiles WHERE id=$1 FOR KEY SHARE",
       [a.id],
     );
     if (actorProfile.deleted_at) fail("Esta cuenta fue eliminada", 401);
@@ -1284,6 +1285,7 @@ export async function ticketDocument(
   const { expireTransfers } = await import("./transfers");
   await expireTransfers(db);
   return db.transaction(async (tx) => {
+    await tx.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
     const o = await one(tx, "SELECT * FROM orders WHERE id=$1", [orderId]);
     const shared = !!(share && o.share_hash && hash(share) === o.share_hash);
     const staff = a ? await can(tx, a, o.event_id, "sell") : false;

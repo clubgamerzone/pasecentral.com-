@@ -1,6 +1,7 @@
 import type { DB, Tx, Row } from "./db";
 import { one, fail, audit, type Actor } from "./service";
 import { token, hash, encrypt } from "./crypto";
+import { ageRangeCanMeetMinimum } from "./account-rules";
 export async function notifyAccount(
   tx: Tx,
   email: string,
@@ -46,12 +47,16 @@ export async function transferTickets(
     fail("El destinatario debe ser otra persona");
   const recipient = (
     await tx.query(
-      "SELECT id FROM profiles WHERE lower(email)=$1 AND deleted_at IS NULL FOR SHARE",
+      "SELECT id FROM profiles WHERE lower(email)=$1 AND deleted_at IS NULL FOR KEY SHARE",
       [email],
     )
   ).rows[0];
   if (kind === "transfer" && !recipient)
     fail("El destinatario debe tener una cuenta existente en Pase Central");
+  await tx.query(
+    "SELECT id FROM events WHERE id IN (SELECT event_id FROM tickets WHERE id=ANY($1::uuid[])) ORDER BY id FOR UPDATE",
+    [ids],
+  );
   const tickets = (
     await tx.query(
       "SELECT t.*,i.order_id,e.ends_at,a.gender,a.age_band,a.demographics_consent FROM tickets t JOIN order_items i ON i.id=t.order_item_id JOIN events e ON e.id=t.event_id LEFT JOIN order_attendees a ON a.id=t.attendee_id WHERE t.id=ANY($1::uuid[]) ORDER BY t.id FOR UPDATE OF t",
@@ -121,6 +126,10 @@ export async function resolveTransfer(
   ageConfirmed = false,
 ) {
   // Lock tickets before transfer to match check-in/expiry and prevent mixed ownership.
+  await tx.query(
+    "SELECT id FROM events WHERE id IN (SELECT t.event_id FROM tickets t JOIN ticket_transfer_items i ON i.ticket_id=t.id WHERE i.transfer_id=$1) ORDER BY id FOR UPDATE",
+    [id],
+  );
   const tickets = (
     await tx.query(
       "SELECT t.*,i.order_id,e.minimum_age,e.ends_at,ti.previous_gender,ti.previous_age_band,ti.previous_consent FROM tickets t JOIN order_items i ON i.id=t.order_item_id JOIN events e ON e.id=t.event_id JOIN ticket_transfer_items ti ON ti.ticket_id=t.id WHERE ti.transfer_id=$1 ORDER BY t.id FOR UPDATE OF t",
@@ -173,8 +182,7 @@ export async function resolveTransfer(
     fail("Completa Género en Mi perfil; puedes elegir Prefiero no responder.");
   if (
     accept &&
-    tickets.some((t) => t.minimum_age >= 18) &&
-    ["0_5", "6_12", "13_17"].includes(p.age_band)
+    tickets.some((t) => !ageRangeCanMeetMinimum(p.age_band, t.minimum_age))
   )
     fail("La edad declarada no cumple la edad mínima del evento");
   for (const [index, t] of tickets.entries()) {
@@ -255,10 +263,10 @@ export async function expireTransfers(db: DB) {
 export async function closeAccount(db: DB, a: Actor) {
   return db.transaction(async (tx) => {
     // Serialize deletions with membership/admin changes and ownership operations.
-    await tx.query("LOCK TABLE platform_admins IN SHARE ROW EXCLUSIVE MODE");
     const p = await one(tx, "SELECT * FROM profiles WHERE id=$1 FOR UPDATE", [
       a.id,
     ]);
+    await tx.query("LOCK TABLE platform_admins IN SHARE ROW EXCLUSIVE MODE");
     if (p.deleted_at) return {};
     if (
       (await tx.query("SELECT 1 FROM platform_admins WHERE user_id=$1", [a.id]))
@@ -277,6 +285,10 @@ export async function closeAccount(db: DB, a: Actor) {
       ).rows.length
     )
       fail("Cierra tus cajas antes de eliminar la cuenta");
+    await tx.query(
+      "SELECT id FROM events WHERE id IN (SELECT t.event_id FROM tickets t WHERE t.owner_user_id=$1 OR t.id IN (SELECT i.ticket_id FROM ticket_transfer_items i JOIN ticket_transfers r ON r.id=i.transfer_id WHERE r.status='pending' AND (r.from_user_id=$1 OR lower(r.recipient_email)=lower($2)))) ORDER BY id FOR UPDATE",
+      [a.id, a.email ?? ""],
+    );
     const owned = (
       await tx.query(
         "SELECT t.*,i.order_id FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE owner_user_id=$1 ORDER BY t.id FOR UPDATE OF t",
@@ -295,15 +307,7 @@ export async function closeAccount(db: DB, a: Actor) {
         "SELECT * FROM ticket_transfers WHERE id=$1",
         [r.id],
       );
-      await resolveTransfer(
-        tx,
-        transfer.from_user_id === a.id
-          ? a
-          : { id: transfer.from_user_id, name: "Remitente" },
-        r.id,
-        false,
-        true,
-      );
+      await resolveTransfer(tx, a, r.id, false, transfer.from_user_id === a.id);
     }
     for (const t of owned) await rotate(tx, t, null);
     await tx.query(
