@@ -35,7 +35,7 @@ export function AuditGuide() {
         />
       </label>
       <p className="helper" style={{ margin: "12px 0" }}>
-        {matches.length} definiciones
+        {matches.length} {matches.length === 1 ? "definición" : "definiciones"}
       </p>
       <div style={{ maxHeight: 440, overflowY: "auto" }}>
         {matches.map(([code, info]) => (
