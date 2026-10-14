@@ -900,7 +900,7 @@ export function Dashboard() {
   return (
     <>
       <Heading
-        title="Todo está bajo control"
+        title="Tus eventos, de un vistazo"
         subtitle="Ventas, público y resultados de tus eventos."
         action={
           <a className="btn primary" href="/admin/events/new">

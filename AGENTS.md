@@ -735,6 +735,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
+Visualización de Análisis y Vista general: `src/components/analytics-charts.tsx`, `analytics.tsx` y estilos en globals.css; tortas/línea/barras, indicadores por significado y tablas desplegables. Uso, colores, pruebas y límites: `docs/ANALYTICS_VISUALS.md` (2026-10-14).
+
 ## 23. Índice de implementación del MVP (2026-10-11)
 
 La guía original se conserva en AGENTS.md.txt como referencia histórica. Este AGENTS.md es la fuente activa de alcance.

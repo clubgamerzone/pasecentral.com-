@@ -391,7 +391,7 @@ test("dashboard y catálogo se adaptan a escritorio y móvil", async ({
   await login(page, "Administración demo");
   await page.goto("/admin");
   await expect(
-    page.getByRole("heading", { name: "Todo está bajo control" }),
+    page.getByRole("heading", { name: "Tus eventos, de un vistazo" }),
   ).toBeVisible();
   await page.screenshot({
     path: "test-results/dashboard-desktop.png",

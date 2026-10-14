@@ -6,6 +6,76 @@ async function login(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.locator(".nav-foot")).toContainText(name);
 }
+
+test("gráficos vacíos no inventan ventas y saldos negativos e incidencias se distinguen de pendientes", async ({
+  page,
+}) => {
+  await login(page, "Administración demo");
+  const baseline = await (await page.request.get("/api/analytics")).json();
+  const response = {
+    ...baseline,
+    channels: [],
+    timeline: [],
+    gender: baseline.gender.map((row: { count: number; percent: number }) => ({
+      ...row,
+      count: 0,
+      percent: 0,
+    })),
+    ages: baseline.ages.map((row: { count: number; percent: number }) => ({
+      ...row,
+      count: 0,
+      percent: 0,
+    })),
+    summary: {
+      ...baseline.summary,
+      gross_cop: 0,
+      net_cop: -50000,
+      sold_tickets: 0,
+      approved_cop: 0,
+      population: 0,
+      review_orders: 2,
+      pending_orders: 1,
+      cash_difference_cop: -25000,
+      closed_cash_sessions: 1,
+    },
+  };
+  await page.route("**/api/analytics?**", (route) =>
+    route.fulfill({ json: response }),
+  );
+  await page.goto("/admin");
+  await expect(
+    page.getByText("Aún no hay datos para estos filtros.").first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("figure", {
+      name: "Género declarado por entrada",
+      exact: true,
+    }),
+  ).toContainText("Sin datos para representar");
+  const net = page.locator(".analytics-metric").filter({
+    has: page.getByText("Ventas menos devoluciones", { exact: true }),
+  });
+  await expect(net).toHaveClass(/tone-bad/);
+  await expect(net).toContainText("Saldo negativo");
+  await expect(
+    page
+      .locator(".analytics-alerts .analytics-status")
+      .filter({ hasText: "2 órdenes requieren revisión" }),
+  ).toHaveClass(/tone-bad/);
+  await expect(
+    page
+      .locator(".analytics-alerts .analytics-status")
+      .filter({ hasText: "1 reservas pendientes de pago" }),
+  ).toHaveClass(/tone-warning/);
+  await page
+    .getByRole("button", { name: "Ver 8 indicadores de operación y caja" })
+    .click();
+  await expect(
+    page
+      .locator(".analytics-metric")
+      .filter({ has: page.getByText("Diferencias de caja", { exact: true }) }),
+  ).toContainText("Faltante agregado");
+});
 test("taquilla captura audiencia por entrada y análisis compara eventos con CSV privado y diseño móvil", async ({
   page,
 }) => {
@@ -69,6 +139,44 @@ test("taquilla captura audiencia por entrada y análisis compara eventos con CSV
     })
     .last();
   await expect(rank.locator("tbody tr")).toHaveCount(2);
+  await expect(
+    page.getByRole("img", { name: /Ventas brutas por día/ }),
+  ).toBeVisible();
+  const channelChart = page.getByRole("figure", {
+    name: "Distribución: Ventas por canal",
+    exact: true,
+  });
+  await expect(channelChart).toBeVisible();
+  await channelChart.getByRole("button").first().click();
+  await expect(channelChart.getByRole("button").first()).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(
+    page.getByRole("figure", {
+      name: "Género declarado por entrada",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("figure", {
+      name: "Rangos de edad declarados",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await rank
+    .getByText("Ver tabla de datos: Resultados por evento", { exact: true })
+    .click();
+  await expect(rank.locator("tbody")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Ver 8 indicadores de operación y caja" })
+    .click();
+  await expect(page.locator(".analytics-metrics")).toContainText(
+    "Diferencias de caja",
+  );
+  await page
+    .getByRole("button", { name: "Ver solo indicadores principales" })
+    .click();
   await page
     .getByLabel("Ordenar eventos por", { exact: true })
     .selectOption("net_cop");
@@ -108,6 +216,21 @@ test("taquilla captura audiencia por entrada y análisis compara eventos con CSV
   await expect(
     page.getByRole("heading", { name: "Auditoría de operaciones" }),
   ).toBeVisible();
+  await expect(
+    page.locator(".analytics-visual-overview .analytics-donut"),
+  ).toBeVisible();
+  await page
+    .locator(".analytics-visual-overview")
+    .screenshot({ path: "test-results/analytics-charts.png" });
+  await page
+    .locator(".report-grid")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Género declarado por entrada",
+        exact: true,
+      }),
+    })
+    .screenshot({ path: "test-results/analytics-audience.png" });
   await page.screenshot({
     path: "test-results/analytics-desktop.png",
     fullPage: true,

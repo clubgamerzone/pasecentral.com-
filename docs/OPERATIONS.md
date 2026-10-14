@@ -106,3 +106,7 @@ Abrir Vista general (`/admin`) o Análisis y reportes (`/admin/reports`). Filtra
 ## Cuentas, regalos y eventos ampliados
 
 Mi perfil incluye género/edad y Eliminar cuenta (confirmación/contraseña; pérdida de entradas propias sin usar, sin reembolso automático). Mis entradas permite aceptar/rechazar regalos o seleccionar entradas para transferir a una cuenta existente; siete días, QR renovados y retorno al remitente. Compra propia bloquea correo; Es un regalo abre destinatario diferente. Organizaciones aparece para admin; Eventos usa apertura en hora/día inicial, cierre con fecha siguiente, edad mínima 18 editable y COP con miles. Localidades/precios incluye canal Ambos y Editar fase. Uso, implementación, migración 008, correos y pruebas: [ACCOUNTS_TICKETS_2026-10-14.md](ACCOUNTS_TICKETS_2026-10-14.md).
+
+## Gráficos e indicadores visuales
+
+Vista general y Reportes muestran dona de canal/género/medios, línea diaria y barras de eventos/fases/localidades/edad/años. Toca leyenda o punto para consultar; usa «Ver las N categorías» para expandir barras, «Ver tabla de datos» para detalle y botón CSV para exportar. Cuatro tarjetas principales y botón para ocho indicadores adicionales; alertas permanecen visibles. Verde favorable, amarillo pendiente/atención, rojo incidencia/saldo negativo, gris informativo. Género/edad tienen colores de distinción sin valoración. Guía y umbrales: [ANALYTICS_VISUALS.md](ANALYTICS_VISUALS.md).

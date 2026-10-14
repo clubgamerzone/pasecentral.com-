@@ -3,6 +3,14 @@ import { useEffect, useState } from "react";
 import { useApp, money, when, Empty } from "./app";
 import type { Row } from "@/lib/db";
 import type { analytics } from "@/lib/analytics";
+import {
+  BarChart,
+  DonutChart,
+  SalesTimeline,
+  StatusTag,
+  signedTone,
+  type Tone,
+} from "./analytics-charts";
 type Result = Awaited<ReturnType<typeof analytics>>;
 export const initialAnalyticsFilters = {
   event: "",
@@ -39,6 +47,7 @@ function AnalyticsTable({
   columns,
   query,
   report,
+  chartMetric,
 }: {
   title: string;
   description?: string;
@@ -46,6 +55,7 @@ function AnalyticsTable({
   columns: Column[];
   query: string;
   report: string;
+  chartMetric?: "quantity" | "net_cop" | "used";
 }) {
   return (
     <section className="panel" style={{ marginTop: 22 }}>
@@ -66,36 +76,71 @@ function AnalyticsTable({
       {!rows.length ? (
         <Empty>Aún no hay datos para estos filtros.</Empty>
       ) : (
-        <div className="table-wrap analytics-table">
-          <table>
-            <thead>
-              <tr>
-                {columns.map((c) => (
-                  <th key={c.key}>{c.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r, n) => (
-                <tr key={r.key ?? n}>
-                  {columns.map((c) => (
-                    <td key={c.key}>
-                      {r[c.key] == null
-                        ? "—"
-                        : c.format === "money"
-                          ? money(r[c.key])
-                          : c.format === "percent"
-                            ? `${r[c.key]}%`
-                            : c.format === "date"
-                              ? when(r[c.key])
-                              : r[c.key]}
-                    </td>
+        <>
+          {report === "timeline" ? (
+            <SalesTimeline rows={rows} />
+          ) : report === "channels" || report === "payments" ? (
+            <DonutChart
+              rows={rows}
+              metric={report === "payments" ? "amount_cop" : "quantity"}
+              monetary={report === "payments"}
+              label={`Distribución: ${title}`}
+            />
+          ) : (
+            <BarChart
+              rows={rows}
+              metric={
+                chartMetric ?? (report === "years" ? "net_cop" : "quantity")
+              }
+              monetary={chartMetric === "net_cop" || report === "years"}
+              signed={chartMetric === "net_cop" || report === "years"}
+              label={`Gráfico: ${title}`}
+            />
+          )}
+          <details className="analytics-details">
+            <summary>Ver tabla de datos: {title}</summary>
+            <div className="table-wrap analytics-table">
+              <table>
+                <thead>
+                  <tr>
+                    {columns.map((c) => (
+                      <th key={c.key}>{c.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, n) => (
+                    <tr key={r.key ?? n}>
+                      {columns.map((c) => (
+                        <td
+                          key={c.key}
+                          className={
+                            r[c.key] != null &&
+                            (c.key === "net_cop" || c.key === "change_percent")
+                              ? `tone-${signedTone(Number(r[c.key]))}`
+                              : c.key === "refunds_cop" && Number(r[c.key]) > 0
+                                ? "tone-warning"
+                                : undefined
+                          }
+                        >
+                          {r[c.key] == null
+                            ? "—"
+                            : c.format === "money"
+                              ? money(r[c.key])
+                              : c.format === "percent"
+                                ? `${r[c.key]}%`
+                                : c.format === "date"
+                                  ? when(r[c.key])
+                                  : r[c.key]}
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </>
       )}
     </section>
   );
@@ -112,25 +157,14 @@ function DemographicBars({
   return (
     <section className="panel">
       <h2>{title}</h2>
-      {!total ? (
-        <Empty>No hay entradas incluidas para analizar.</Empty>
+      {title === "Género declarado por entrada" ? (
+        <DonutChart rows={rows} label={title} />
       ) : (
-        <div style={{ marginTop: 18 }}>
-          {rows.map((r) => (
-            <div className="analytics-bar-row" key={r.key}>
-              <div>
-                <span>{r.label}</span>
-                <b>
-                  {r.count} · {r.percent}%
-                </b>
-              </div>
-              <div className="analytics-bar-track">
-                <span style={{ width: `${r.percent}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
+        <BarChart rows={rows} metric="count" label={title} />
       )}
+      <p className="helper">
+        {total} entradas incluidas. Sin dato se muestra como categoría propia.
+      </p>
     </section>
   );
 }
@@ -143,6 +177,7 @@ export function AnalyticsPanel({
 }) {
   const { data, refresh } = useApp();
   const [epoch, setEpoch] = useState(0),
+    [showMetrics, setShowMetrics] = useState(false),
     [rank, setRank] = useState<"quantity" | "net_cop" | "used">("quantity"),
     [global, setGlobal] = useState(false);
   const query = analyticsQuery(filters),
@@ -223,6 +258,65 @@ export function AnalyticsPanel({
       )
     : [];
   const s = r?.summary;
+  const capacity = r?.events.reduce((sum, e) => sum + e.capacity, 0) ?? 0;
+  const metricTones: Tone[] = s
+    ? [
+        signedTone(s.gross_cop),
+        signedTone(s.net_cop),
+        signedTone(s.sold_tickets),
+        signedTone(s.approved_cop),
+        "neutral",
+        signedTone(s.used),
+        capacity > 0 && s.available / capacity <= 0.1 ? "warning" : "neutral",
+        s.pending_orders > 0 ? "warning" : "neutral",
+        "neutral",
+        s.review_orders > 0 ? "bad" : s.paid_orders > 0 ? "good" : "neutral",
+        "neutral",
+        s.cash_difference_cop < 0
+          ? "bad"
+          : s.cash_difference_cop > 0
+            ? "warning"
+            : s.closed_cash_sessions > 0
+              ? "good"
+              : "neutral",
+      ]
+    : [];
+  const metricNotes = s
+    ? [
+        s.gross_cop > 0 ? "Ventas confirmadas" : "Sin ventas",
+        s.net_cop < 0
+          ? "Saldo negativo"
+          : s.net_cop > 0
+            ? "Saldo positivo"
+            : "Saldo cero",
+        s.sold_tickets > 0 ? "Ventas registradas" : "Sin ventas",
+        s.approved_cop > 0 ? "Cobros registrados" : "Sin cobros",
+        "Promedio del período",
+        "Asistencia registrada",
+        capacity === 0
+          ? "Sin aforo seleccionado"
+          : s.available === 0
+            ? "Sin cupo disponible"
+            : s.available / capacity <= 0.1
+              ? "Queda 10% o menos del aforo"
+              : "Cupo disponible",
+        s.pending_orders > 0 ? "Pendientes de pago" : "Sin reservas",
+        "Dato del período",
+        s.review_orders > 0
+          ? "Requiere revisión"
+          : s.paid_orders > 0
+            ? "Sin órdenes en revisión"
+            : "Sin actividad de cobro",
+        "Cuentas vinculadas",
+        s.closed_cash_sessions === 0
+          ? "Sin cierres"
+          : s.cash_difference_cop < 0
+            ? "Faltante agregado"
+            : s.cash_difference_cop > 0
+              ? "Sobrante agregado: revisar"
+              : "Balance agregado cero",
+      ]
+    : [];
   return (
     <>
       <section className="panel" style={{ marginBottom: 22 }}>
@@ -350,7 +444,10 @@ export function AnalyticsPanel({
               registros guardados en el servidor.
             </div>
           )}
-          <div className="metrics analytics-metrics">
+          <div
+            id="analytics-indicators"
+            className={`metrics analytics-metrics${showMetrics ? "" : " metrics-compact"}`}
+          >
             {[
               [
                 "Ventas brutas",
@@ -412,13 +509,91 @@ export function AnalyticsPanel({
                 money(s.cash_difference_cop),
                 `${s.closed_cash_sessions} cierres en el período`,
               ],
-            ].map(([label, value, note]) => (
-              <article className="metric" key={label}>
+            ].map(([label, value, note], index) => (
+              <article
+                className={`metric analytics-metric tone-${metricTones[index]}`}
+                key={label}
+              >
                 <div className="metric-top">{label}</div>
                 <strong>{value}</strong>
                 <small>{note}</small>
+                <StatusTag tone={metricTones[index]}>
+                  {metricNotes[index]}
+                </StatusTag>
               </article>
             ))}
+          </div>
+          <button
+            className="btn small"
+            type="button"
+            aria-expanded={showMetrics}
+            aria-controls="analytics-indicators"
+            onClick={() => setShowMetrics(!showMetrics)}
+          >
+            {showMetrics
+              ? "Ver solo indicadores principales"
+              : "Ver 8 indicadores de operación y caja"}
+          </button>
+          {(s.review_orders > 0 ||
+            s.pending_orders > 0 ||
+            s.cash_difference_cop !== 0 ||
+            (capacity > 0 && s.available / capacity <= 0.1)) && (
+            <div
+              className="analytics-alerts"
+              aria-label="Indicadores que requieren atención"
+            >
+              {s.review_orders > 0 && (
+                <StatusTag tone="bad">
+                  {s.review_orders} órdenes requieren revisión
+                </StatusTag>
+              )}
+              {s.pending_orders > 0 && (
+                <StatusTag tone="warning">
+                  {s.pending_orders} reservas pendientes de pago
+                </StatusTag>
+              )}
+              {s.cash_difference_cop !== 0 && (
+                <StatusTag tone={s.cash_difference_cop < 0 ? "bad" : "warning"}>
+                  Caja: {money(s.cash_difference_cop)} de diferencia agregada
+                </StatusTag>
+              )}
+              {capacity > 0 && s.available / capacity <= 0.1 && (
+                <StatusTag tone="warning">
+                  Cupo limitado: {s.available} disponibles
+                </StatusTag>
+              )}
+            </div>
+          )}
+          <div
+            className="analytics-color-guide"
+            aria-label="Guía de colores de indicadores"
+          >
+            <StatusTag tone="good">Favorable / registrado</StatusTag>
+            <StatusTag tone="warning">Atención o pendiente</StatusTag>
+            <StatusTag tone="bad">Incidencia o saldo negativo</StatusTag>
+            <StatusTag tone="neutral">Informativo / sin base</StatusTag>
+            <p className="helper">
+              El color depende del significado del indicador. No representa
+              utilidad ni dinero recibido en banco. Cupo bajo: 10% o menos del
+              aforo total seleccionado.
+            </p>
+          </div>
+          <div className="analytics-visual-overview">
+            <AnalyticsTable
+              title="Evolución diaria de ventas"
+              description="Ventas brutas según el día de confirmación, en hora de Colombia."
+              rows={r.timeline}
+              columns={[{ key: "label", label: "Fecha" }, ...columns.slice(1)]}
+              query={query}
+              report="timeline"
+            />
+            <AnalyticsTable
+              title="Ventas por canal"
+              rows={r.channels}
+              columns={columns}
+              query={query}
+              report="channels"
+            />
           </div>
           <section className="panel" style={{ marginTop: 22 }}>
             <div className="panel-head">
@@ -472,6 +647,7 @@ export function AnalyticsPanel({
               ]}
               query={query}
               report="events"
+              chartMetric={rank}
             />
           </section>
           <AnalyticsTable
@@ -518,13 +694,6 @@ export function AnalyticsPanel({
             report={global ? "global_types" : "types"}
           />
           <AnalyticsTable
-            title="Ventas por canal"
-            rows={r.channels}
-            columns={columns}
-            query={query}
-            report="channels"
-          />
-          <AnalyticsTable
             title="Ventas por operador"
             description="La venta online se agrupa como canal; el comprador no se cuenta como vendedor."
             rows={r.operators}
@@ -543,14 +712,6 @@ export function AnalyticsPanel({
             ]}
             query={query}
             report="payments"
-          />
-          <AnalyticsTable
-            title="Evolución diaria de ventas"
-            description="Días con confirmaciones en hora de Colombia; no se usa la fecha inicial de la reserva."
-            rows={r.timeline}
-            columns={[{ key: "label", label: "Fecha" }, ...columns.slice(1)]}
-            query={query}
-            report="timeline"
           />
           <AnalyticsTable
             title="Ventas por categoría de comprador"
@@ -608,26 +769,60 @@ export function AnalyticsPanel({
             {!r.rejections.length ? (
               <Empty>Aún no hay lecturas para estos filtros.</Empty>
             ) : (
-              r.rejections.map((row) => (
-                <div className="summary-line" key={row.key}>
-                  <span>
-                    {(
-                      {
-                        accepted: "Ingreso aceptado",
-                        pending_transfer: "Entrega pendiente de aceptación",
-                        already_used: "Entrada ya utilizada",
-                        cancelled: "Entrada anulada",
-                        wrong_event: "Otro evento",
-                        outside_admission_window:
-                          "Fuera del horario de ingreso",
-                        unknown_ticket: "QR desconocido",
-                        unauthorized: "Sin autorización",
-                      } as Record<string, string>
-                    )[row.key] ?? row.key}
-                  </span>
-                  <b>{row.count}</b>
-                </div>
-              ))
+              <>
+                <BarChart
+                  label="Resultados de lecturas de acceso"
+                  metric="count"
+                  rows={r.rejections.map((row) => ({
+                    ...row,
+                    label:
+                      (
+                        {
+                          accepted: "Aceptadas",
+                          already_used: "Ya utilizadas",
+                          cancelled: "Anuladas",
+                          pending_transfer: "Entrega pendiente",
+                          wrong_event: "Otro evento",
+                          outside_admission_window: "Fuera de horario",
+                          unknown_ticket: "QR desconocido",
+                          unauthorized: "Sin autorización",
+                        } as Record<string, string>
+                      )[row.key] ?? row.key,
+                  }))}
+                />
+                {r.rejections.map((row) => (
+                  <div className="summary-line" key={row.key}>
+                    <span>
+                      {(
+                        {
+                          accepted: "Ingreso aceptado",
+                          pending_transfer: "Entrega pendiente de aceptación",
+                          already_used: "Entrada ya utilizada",
+                          cancelled: "Entrada anulada",
+                          wrong_event: "Otro evento",
+                          outside_admission_window:
+                            "Fuera del horario de ingreso",
+                          unknown_ticket: "QR desconocido",
+                          unauthorized: "Sin autorización",
+                        } as Record<string, string>
+                      )[row.key] ?? row.key}
+                    </span>
+                    <StatusTag
+                      tone={
+                        row.key === "accepted"
+                          ? "good"
+                          : row.key === "pending_transfer" ||
+                              row.key === "already_used" ||
+                              row.key === "outside_admission_window"
+                            ? "warning"
+                            : "bad"
+                      }
+                    >
+                      {row.count}
+                    </StatusTag>
+                  </div>
+                ))}
+              </>
             )}
           </section>
           <p className="helper" style={{ marginTop: 20 }}>
