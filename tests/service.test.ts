@@ -98,6 +98,22 @@ async function scan(
   });
 }
 describe("Inventario, precios y emisión transaccional", () => {
+  it("no limpia eventos vinculados a una invitación de trabajador pendiente", async () => {
+    await execute(db, admin, {
+      action: "invite_create",
+      name: "Cajero",
+      email: "worker@example.test",
+      role: "box_office",
+      event_ids: [e1],
+    });
+    await expect(resetTestData(db, [e1, e2], async () => {})).rejects.toThrow(
+      "invitaciones pendientes",
+    );
+    expect((await db.query("SELECT id FROM events")).rows).toHaveLength(2);
+    expect(
+      (await db.query("SELECT status FROM team_invitations")).rows[0].status,
+    ).toBe("pending");
+  });
   it("limpia ensayos con respaldo obligatorio, preserva cuentas e invitación global y rechaza eventos reales", async () => {
     await execute(db, admin, {
       action: "invite_create",
