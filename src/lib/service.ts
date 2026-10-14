@@ -1320,7 +1320,8 @@ export async function ticketDocument(
       order: {
         id: o.id,
         status: o.status,
-        total_cop: o.total_cop,
+        total_cop:
+          staff || shared || o.buyer_user_id === a?.id ? o.total_cop : null,
         buyer_name:
           staff || o.buyer_user_id === a?.id || shared
             ? o.buyer_name

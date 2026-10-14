@@ -171,7 +171,12 @@ describe("Cuentas y titularidad de entradas", () => {
     );
     const s = await state(db, recipient);
     expect(s.tickets.find((t) => t.id === after.id)).toBeTruthy();
-    expect(s.orders.find((o) => o.id === order)?.buyer_email).toBeNull();
+    expect(s.orders.find((o) => o.id === order)).toBeUndefined();
+    expect(s.payments.some((p) => p.order_id === order)).toBe(false);
+    expect(s.items.some((i) => i.order_id === order)).toBe(false);
+    const receivedDocument = await ticketDocument(db, recipient, order);
+    expect(receivedDocument.order.total_cop).toBeNull();
+    expect(receivedDocument.share).toBe("");
     expect(
       (
         await one(db, "SELECT gender FROM order_attendees WHERE id=$1", [

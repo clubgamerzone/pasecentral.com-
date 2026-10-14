@@ -84,7 +84,7 @@ export async function state(db: DB, a: Actor | null) {
     if (a) {
       orders = (
         await tx.query(
-          `SELECT id,event_id,buyer_user_id,gift_email IS NOT NULL AS is_gift,CASE WHEN buyer_user_id=$1 OR event_id=ANY($2::uuid[]) THEN buyer_name END AS buyer_name,CASE WHEN buyer_user_id=$1 OR event_id=ANY($2::uuid[]) THEN buyer_email END AS buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,confirmed_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) OR EXISTS(SELECT 1 FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=orders.id AND t.owner_user_id=$1) ORDER BY created_at DESC`,
+          `SELECT id,event_id,buyer_user_id,gift_email IS NOT NULL AS is_gift,buyer_name,buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,confirmed_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) ORDER BY created_at DESC`,
           [a.id, sellable],
         )
       ).rows;
