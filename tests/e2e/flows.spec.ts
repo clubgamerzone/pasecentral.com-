@@ -396,6 +396,45 @@ test("dashboard y catálogo se adaptan a escritorio y móvil", async ({
     fullPage: true,
   });
 });
+test("auditoría explica operaciones y permite consultar códigos sin crear nuevos registros", async ({
+  page,
+}) => {
+  await login(page, "Administración demo");
+  const response = await page.request.post("/api/commands", {
+    headers: { origin: "http://127.0.0.1:3100" },
+    data: {
+      action: "profile_update",
+      name: "Administración demo",
+      phone: "",
+      bio: "",
+    },
+  });
+  expect(response.ok()).toBe(true);
+  await page.goto("/admin/reports");
+  const auditRow = page
+    .locator("tr")
+    .filter({ hasText: "profile_updated" })
+    .first();
+  await expect(auditRow).toContainText("Datos de cuenta actualizados");
+  await expect(auditRow).toContainText("Cuenta de usuario");
+  const before = (await (await page.request.get("/api/state")).json()).audit
+    .length;
+  await page.getByText("Guía de códigos de operación", { exact: true }).click();
+  await page
+    .getByLabel("Buscar código u operación")
+    .fill("profile_photo_updated");
+  await expect(page.locator(".audit-guide article")).toHaveCount(1);
+  await expect(page.locator(".audit-guide article")).toContainText(
+    "Foto de perfil actualizada",
+  );
+  await page.getByLabel("Buscar código u operación").fill("codigo_inexistente");
+  await expect(
+    page.getByText("No encontramos ese código en la guía."),
+  ).toBeVisible();
+  const after = (await (await page.request.get("/api/state")).json()).audit
+    .length;
+  expect(after).toBe(before);
+});
 
 test("perfil con foto privada e invitación a varios eventos", async ({
   page,

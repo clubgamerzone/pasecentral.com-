@@ -167,3 +167,8 @@ Backups privados verificados: .local/backups/test-reset-2026-10-13T23-58-56.550Z
 ### Auditoría del ensayo retirada — 2026-10-13
 
 Solicitud adicional del propietario: retirar también auditoría existente. Se revisaron diez filas restantes y negocio en cero; backup cifrado privado verificado antes de borrar. `.local/clear-audit.ts` eliminó solo esos UUID en una transacción; auditoría quedó en cero, con Auth/perfil/admin e invitaciones sin cambios (1/1/1/2). No se deshabilita auditoría futura ni se modifica código/permisos/RLS. Respaldo y significado de columnas en TEST_DATA_RESET.md. Tabla de auditoría vacía verificada en Reportes; evidencia privada .local/verification/empty-audit-after-reset.png; no se requieren nuevas pruebas de aplicación por tratarse solo de datos y documentación.
+## Guía visible de códigos de auditoría — 2026-10-13
+
+Reportes muestra operaciones y entidades en español; cada fila conserva código original y añade explicación. Guía de códigos desplegable con búsqueda por código/nombre/descripción, disponible con historial vacío. Catálogo audit-labels.ts cubre acciones emitidas por servicio, invitaciones, fotos, bootstrap/migración/mantenimiento; fallback explícito para códigos no catalogados. Interfaz audit-guide.tsx integrada en operations.tsx. Sin cambio de datos, roles ni dependencias; no se crean registros al consultar. Guía detallada AUDIT_GUIDE.md e índice operativo actualizados.
+
+Lint/tipos y E2E dirigido pasaron: fila profile_updated traducida, entidad Cuenta de usuario, búsqueda de profile_photo_updated, código inexistente y contador de auditoría sin cambios al consultar. Build/publicación en verificación. Commit localizable con `git log -1 -- src/lib/audit-labels.ts`.

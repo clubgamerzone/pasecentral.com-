@@ -97,3 +97,6 @@ Equipo y usuarios → Invitar a tu equipo: introducir nombre/correo, elegir Caje
 ## Reinicio excepcional de ensayos
 
 Guía privada: TEST_DATA_RESET.md. No usar DELETE/TRUNCATE indiscriminado ni reiniciar usuarios; scripts/reset-test-data.ts exige entorno staging/sandbox, lista exacta de todos los eventos DEMO y respaldo cifrado. No corre automáticamente al publicar. Eliminar prueba no activa pagos comerciales. Asignar trabajadores a los eventos nuevos; invitaciones globales/cuentas permanecen.
+## Entender códigos de auditoría
+
+Reportes → Auditoría de operaciones → **Guía de códigos de operación**; buscar código o palabra. Cada fila presenta nombre y explicación en español junto al código original. La guía está disponible incluso sin historial, no crea auditoría ni cambia permisos. Definiciones y mantenimiento: AUDIT_GUIDE.md.

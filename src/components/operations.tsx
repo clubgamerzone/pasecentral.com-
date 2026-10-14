@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
 import { EventDetails, EditTicketType } from "./event-editing";
+import { AuditGuide } from "./audit-guide";
+import { auditOperation, auditEntity } from "@/lib/audit-labels";
 import {
   Plus,
   Download,
@@ -1713,6 +1715,7 @@ export function Reports() {
           Registro protegido sin edición desde la aplicación. No contiene QR
           secretos.
         </p>
+        <AuditGuide />
         <div className="table-wrap" style={{ marginTop: 20 }}>
           <table>
             <thead>
@@ -1727,9 +1730,19 @@ export function Reports() {
               {data.audit.map((l) => (
                 <tr key={l.id}>
                   <td>{when(l.created_at)}</td>
-                  <td>{l.action}</td>
                   <td>
-                    {l.entity_type} · {l.entity_id?.slice(0, 8)}
+                    <b>{auditOperation(l.action).label}</b>
+                    <br />
+                    <code className="helper">{l.action}</code>
+                    <p
+                      className="helper"
+                      style={{ marginTop: 6, maxWidth: 380 }}
+                    >
+                      {auditOperation(l.action).description}
+                    </p>
+                  </td>
+                  <td>
+                    {auditEntity(l.entity_type)} · {l.entity_id?.slice(0, 8)}
                   </td>
                   <td>
                     {data.people.find((p) => p.id === l.actor_id)?.name ??
