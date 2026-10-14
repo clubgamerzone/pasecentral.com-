@@ -51,7 +51,11 @@ export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
   busy: boolean;
-  run: (body: Row, success?: string) => Promise<Row | null>;
+  run: (
+    body: Row,
+    success?: string,
+    onError?: (message: string) => void,
+  ) => Promise<Row | null>;
   refresh: () => Promise<void>;
   navigate: (path: string) => void;
   notify: (message: string, error?: boolean) => void;
@@ -267,7 +271,11 @@ export function App() {
   }, [refresh, router]);
   const notify = (message: string, error = false) =>
     setToast({ message, error });
-  async function run(body: Row, success = "Operación guardada") {
+  async function run(
+    body: Row,
+    success = "Operación guardada",
+    onError?: (message: string) => void,
+  ) {
     setBusy(true);
     try {
       const res = await fetch("/api/commands", {
@@ -285,7 +293,9 @@ export function App() {
       if (success) notify(success);
       return result;
     } catch (e) {
-      notify(e instanceof Error ? e.message : "Error de conexión", true);
+      const message = e instanceof Error ? e.message : "Error de conexión";
+      notify(message, true);
+      onError?.(message);
       return null;
     } finally {
       setBusy(false);

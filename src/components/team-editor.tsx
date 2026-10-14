@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApp } from "./app";
 import type { Row } from "@/lib/db";
 const roles = {
@@ -11,8 +11,14 @@ export function TeamEditor({ eventId }: { eventId?: string }) {
   const { data, run, busy } = useApp();
   const [editing, setEditing] = useState<Row | null>(null);
   const [name, setName] = useState("");
+  const [saveError, setSaveError] = useState("");
   const [global, setGlobal] = useState(false);
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (editing && dialog.current && !dialog.current.open)
+      dialog.current.showModal();
+  }, [editing]);
   const events = data.events.filter(
     (e) =>
       data.permissions.manage.includes(e.id) && (!eventId || e.id === eventId),
@@ -26,6 +32,7 @@ export function TeamEditor({ eventId }: { eventId?: string }) {
       )
     : data.people;
   const edit = (person: Row) => {
+    setSaveError("");
     setEditing(person);
     setName(person.name);
     setGlobal(person.platform_admin);
@@ -93,127 +100,134 @@ export function TeamEditor({ eventId }: { eventId?: string }) {
         ))}
       </div>
       {editing && (
-        <div className="image-confirm-backdrop">
-          <section
-            className="panel team-edit-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="team-edit-title"
+        <dialog
+          ref={dialog}
+          className="panel team-edit-dialog"
+          aria-labelledby="team-edit-title"
+          onCancel={(event) => {
+            if (busy) event.preventDefault();
+            else setEditing(null);
+          }}
+        >
+          <h2 id="team-edit-title">Editar usuario y permisos</h2>
+          <p className="helper">
+            {editing.name} · {editing.email}
+          </p>
+          <form
+            onSubmit={async (event) => {
+              event.preventDefault();
+              setSaveError("");
+              const result = await run(
+                {
+                  action: "team_update",
+                  user_id: editing.id,
+                  ...(data.permissions.admin
+                    ? { name, platform_admin: global }
+                    : {}),
+                  assignments: events.map((e) => ({
+                    event_id: e.id,
+                    roles: assignments[e.id] ?? [],
+                  })),
+                },
+                "Usuario y permisos actualizados",
+                setSaveError,
+              );
+              if (result) setEditing(null);
+            }}
           >
-            <h2 id="team-edit-title">Editar usuario y permisos</h2>
+            {saveError && (
+              <p role="alert" className="notice">
+                {saveError}
+              </p>
+            )}
+            {data.permissions.admin && (
+              <>
+                <label className="field">
+                  <span>Nombre del usuario</span>
+                  <input
+                    autoFocus
+                    value={name}
+                    required
+                    maxLength={150}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </label>
+                <label className="inline-check">
+                  <input
+                    type="checkbox"
+                    checked={global}
+                    onChange={(e) => setGlobal(e.target.checked)}
+                  />
+                  Administrador global (todos los eventos)
+                </label>
+              </>
+            )}
             <p className="helper">
-              {editing.name} · {editing.email}
+              Esta pantalla administra el nombre y los permisos de trabajo; no
+              cambia el correo de inicio de sesión ni los datos personales del
+              titular.
             </p>
-            <form
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const result = await run(
-                  {
-                    action: "team_update",
-                    user_id: editing.id,
-                    ...(data.permissions.admin
-                      ? { name, platform_admin: global }
-                      : {}),
-                    assignments: events.map((e) => ({
-                      event_id: e.id,
-                      roles: assignments[e.id] ?? [],
-                    })),
-                  },
-                  "Usuario y permisos actualizados",
-                );
-                if (result) setEditing(null);
-              }}
-            >
-              {data.permissions.admin && (
-                <>
-                  <label className="field">
-                    <span>Nombre del usuario</span>
-                    <input
-                      autoFocus
-                      value={name}
-                      required
-                      maxLength={150}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </label>
-                  <label className="inline-check">
+            {events.map((e) => (
+              <fieldset key={e.id} className="team-event-permissions">
+                <legend>{e.title}</legend>
+                {Object.entries(roles).map(([role, label]) => (
+                  <label className="inline-check" key={role}>
                     <input
                       type="checkbox"
-                      checked={global}
-                      onChange={(e) => setGlobal(e.target.checked)}
+                      aria-label={`${label} — ${e.title}`}
+                      checked={(assignments[e.id] ?? []).includes(role)}
+                      onChange={(event) =>
+                        setAssignments({
+                          ...assignments,
+                          [e.id]: event.target.checked
+                            ? [...(assignments[e.id] ?? []), role]
+                            : (assignments[e.id] ?? []).filter(
+                                (r) => r !== role,
+                              ),
+                        })
+                      }
                     />
-                    Administrador global (todos los eventos)
+                    {label}
                   </label>
-                </>
-              )}
-              <p className="helper">
-                Esta pantalla administra el nombre y los permisos de trabajo; no
-                cambia el correo de inicio de sesión ni los datos personales del
-                titular.
+                ))}
+                {(global ||
+                  editing.managing_organizations?.includes(
+                    e.organization_id,
+                  )) && (
+                  <p className="notice">
+                    Esta cuenta también tiene permisos heredados de{" "}
+                    {global ? "administrador global" : "su organización"}.
+                    Desmarcar permisos del evento no retira ese acceso general.
+                  </p>
+                )}
+              </fieldset>
+            ))}
+            <p className="helper">
+              Administrador de evento incluye ventas y acceso. Sin ningún
+              permiso marcado se retiran las asignaciones directas de ese
+              evento. Los otros eventos se conservan.
+            </p>
+            {editing.id === data.actor?.id && (
+              <p className="notice">
+                Estás editando tus propios permisos. Podrías perder acceso a
+                esta pantalla; el último administrador global está protegido.
               </p>
-              {events.map((e) => (
-                <fieldset key={e.id} className="team-event-permissions">
-                  <legend>{e.title}</legend>
-                  {Object.entries(roles).map(([role, label]) => (
-                    <label className="inline-check" key={role}>
-                      <input
-                        type="checkbox"
-                        aria-label={`${label} — ${e.title}`}
-                        checked={(assignments[e.id] ?? []).includes(role)}
-                        onChange={(event) =>
-                          setAssignments({
-                            ...assignments,
-                            [e.id]: event.target.checked
-                              ? [...(assignments[e.id] ?? []), role]
-                              : (assignments[e.id] ?? []).filter(
-                                  (r) => r !== role,
-                                ),
-                          })
-                        }
-                      />
-                      {label}
-                    </label>
-                  ))}
-                  {(global ||
-                    editing.managing_organizations?.includes(
-                      e.organization_id,
-                    )) && (
-                    <p className="notice">
-                      Esta cuenta también tiene permisos heredados de{" "}
-                      {global ? "administrador global" : "su organización"}.
-                      Desmarcar permisos del evento no retira ese acceso
-                      general.
-                    </p>
-                  )}
-                </fieldset>
-              ))}
-              <p className="helper">
-                Administrador de evento incluye ventas y acceso. Sin ningún
-                permiso marcado se retiran las asignaciones directas de ese
-                evento. Los otros eventos se conservan.
-              </p>
-              {editing.id === data.actor?.id && (
-                <p className="notice">
-                  Estás editando tus propios permisos. Podrías perder acceso a
-                  esta pantalla; el último administrador global está protegido.
-                </p>
-              )}
-              <div className="buttons">
-                <button className="btn primary" disabled={busy}>
-                  Guardar usuario y permisos
-                </button>
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={busy}
-                  onClick={() => setEditing(null)}
-                >
-                  Cancelar edición
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
+            )}
+            <div className="buttons">
+              <button className="btn primary" disabled={busy}>
+                Guardar usuario y permisos
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => setEditing(null)}
+              >
+                Cancelar edición
+              </button>
+            </div>
+          </form>
+        </dialog>
       )}
     </section>
   );

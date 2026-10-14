@@ -11,6 +11,30 @@ test("incluir acceso en invitación y editar taquilla/lector desde usuarios sin 
 }) => {
   await login(page, "Administración demo");
   await page.goto("/admin/users");
+  await page
+    .getByRole("button", {
+      name: "Editar permisos de Administración demo",
+      exact: true,
+    })
+    .click();
+  const protectedDialog = page.getByRole("dialog", {
+    name: "Editar usuario y permisos",
+  });
+  await protectedDialog
+    .getByRole("checkbox", {
+      name: "Administrador global (todos los eventos)",
+      exact: true,
+    })
+    .uncheck();
+  await protectedDialog
+    .getByRole("button", { name: "Guardar usuario y permisos" })
+    .click();
+  await expect(protectedDialog.getByRole("alert")).toContainText(
+    "último administrador global",
+  );
+  await protectedDialog
+    .getByRole("button", { name: "Cancelar edición" })
+    .click();
   await expect(
     page.getByRole("checkbox", { name: /Incluir acceso/ }),
   ).toBeVisible();
@@ -143,5 +167,6 @@ test("administrador de evento invita y edita solo su evento, sin nombres ni rol 
   const state = await (await page.request.get("/api/state")).json();
   expect(state.permissions.manage).toEqual([e1]);
   await expect(modal.locator("fieldset")).toHaveCount(1);
-  await modal.getByRole("button", { name: "Cancelar edición" }).click();
+  await page.keyboard.press("Escape");
+  await expect(modal).toHaveCount(0);
 });
