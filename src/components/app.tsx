@@ -580,7 +580,19 @@ export function App() {
 function Login() {
   const { data, refresh, navigate, notify } = useApp();
   const [signup, setSignup] = useState(false),
-    [pending, setPending] = useState(false);
+    [pending, setPending] = useState(false),
+    [invited, setInvited] = useState(false);
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const timer = setTimeout(() => {
+      setInvited(
+        params.get("invitation") === "1" ||
+          !!sessionStorage.getItem("pc-invitation"),
+      );
+      if (params.get("register") === "1") setSignup(true);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   async function login(body: Row) {
     setPending(true);
     try {
@@ -592,8 +604,18 @@ function Login() {
       const b = await res.json();
       if (!res.ok) throw new Error(b.error);
       await refresh();
-      if (body.action === "signup") notify(b.message);
-      else if (sessionStorage.getItem("pc-invitation")) navigate("/invite");
+      if (body.action === "signup")
+        notify(
+          invited
+            ? "Cuenta creada. Confirma tu correo y continúa para activar los permisos de tu invitación."
+            : b.message,
+        );
+      else if (
+        b.next === "/invite" ||
+        invited ||
+        sessionStorage.getItem("pc-invitation")
+      )
+        navigate("/invite");
       else
         navigate(
           body.action === "demo" && [USERS[0].id, USERS[1].id].includes(body.id)
@@ -613,7 +635,20 @@ function Login() {
   return (
     <section className="panel login-panel">
       <div className="eyebrow">Bienvenido a Pase Central</div>
-      <h1>{signup ? "Crea tu cuenta" : "Todo listo para entrar"}</h1>
+      <h1>
+        {signup
+          ? invited
+            ? "Crea tu cuenta para unirte al equipo"
+            : "Crea tu cuenta"
+          : "Todo listo para entrar"}
+      </h1>
+      {invited && (
+        <p className="notice">
+          Usa el mismo correo que recibió la invitación. Después de confirmar tu
+          correo, podrás activar el rol asignado; no se crea una cuenta de
+          trabajo distinta ni debes elegir un rol.
+        </p>
+      )}
       {typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).get("account") ===
           "deleted" && (
@@ -742,14 +777,22 @@ function Login() {
             autoComplete={signup ? "new-password" : "current-password"}
           />
           <button className="btn primary" disabled={pending}>
-            {signup ? "Crear cuenta" : "Iniciar sesión"}
+            {signup
+              ? invited
+                ? "Crear cuenta y continuar con la invitación"
+                : "Crear cuenta"
+              : "Iniciar sesión"}
           </button>
           <button
             type="button"
             className="link"
             onClick={() => setSignup(!signup)}
           >
-            {signup ? "Ya tengo una cuenta" : "Crear una cuenta de comprador"}
+            {signup
+              ? "Ya tengo una cuenta"
+              : invited
+                ? "Crear cuenta para unirme al equipo"
+                : "Crear una cuenta de comprador"}
           </button>
           {!signup && (
             <a className="link" href="/forgot-password">

@@ -5,6 +5,7 @@ import { supabase, demoLogin } from "@/lib/auth";
 import { appUrl, demoMode } from "@/lib/config";
 import { originCheck, jsonBody, errorResponse } from "@/lib/http";
 import { database } from "@/lib/db";
+import { pendingInvitation } from "@/lib/invitations";
 import { fail, rateLimit } from "@/lib/service";
 import {
   registration,
@@ -133,8 +134,19 @@ export async function POST(req: Request) {
         "No se pudo iniciar sesión o registrar. Verifica tus datos y tu correo.",
         400,
       );
+    const user = res.data?.user;
+    const resume =
+      b.action === "login" &&
+      user?.email_confirmed_at &&
+      (await pendingInvitation(await database(), {
+        id: user.id,
+        name: "",
+        email: user.email,
+        email_verified: true,
+      }));
     return NextResponse.json({
       ok: true,
+      ...(resume ? { next: "/invite" } : {}),
       message:
         b.action === "signup"
           ? "Revisa tu correo para confirmar tu cuenta."

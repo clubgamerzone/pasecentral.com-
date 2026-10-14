@@ -673,7 +673,8 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "invite_create":
       case "invite_resend":
       case "invite_revoke":
-      case "invite_accept": {
+      case "invite_accept":
+      case "invite_accept_pending": {
         const { invitationCommand } = await import("./invitations");
         return invitationCommand(tx, a, c);
       }

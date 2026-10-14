@@ -4,6 +4,12 @@ import { useApp, Heading, Field } from "./app";
 import { formValues } from "./operations";
 import { genders, ageBands } from "@/lib/demographics";
 import { DeleteAccount } from "./ticket-wallet";
+const invitationRoles: Record<string, string> = {
+  platform_admin: "Administrador global",
+  organizer: "Administrador de evento",
+  box_office: "Cajero / taquilla",
+  access_staff: "Acceso / lector QR",
+};
 export function MyProfile() {
   const { data, run, busy, refresh, notify } = useApp();
   const [uploading, setUploading] = useState(false);
@@ -40,14 +46,27 @@ export function MyProfile() {
         title="Mi perfil"
         subtitle="Tus datos de cuenta, contacto y foto de perfil"
       />
+      {data.pending_invitation && (
+        <section className="panel" style={{ marginBottom: 20 }}>
+          <h2>Tienes una invitación pendiente al equipo</h2>
+          <p>
+            Tu cuenta ya está creada. Activa el permiso de{" "}
+            {invitationRoles[data.pending_invitation.role]} aceptando la
+            invitación.
+          </p>
+          <a className="btn primary" href="/invite">
+            Continuar y activar permisos del equipo
+          </a>
+        </section>
+      )}
       {typeof window !== "undefined" &&
         new URLSearchParams(window.location.search).get("confirmed") ===
           "1" && (
           <p className="notice">
             Tu correo quedó confirmado y ya ingresaste a tu cuenta. Revisa tu
             perfil. Si recibiste un regalo, acéptalo en Mis entradas; si
-            recibiste una invitación al equipo, vuelve a su enlace para
-            aceptarla.
+            recibiste una invitación al equipo, puedes continuar desde el aviso
+            de invitación pendiente de esta pantalla.
           </p>
         )}
       <section className="panel" style={{ maxWidth: 760 }}>
@@ -243,6 +262,7 @@ export function MyProfile() {
 export function AcceptInvitation() {
   const { data, run, busy, navigate, refresh } = useApp();
   const [credential, setCredential] = useState("");
+  const pending = data.pending_invitation;
   useEffect(() => {
     const value =
       location.hash.slice(1) || sessionStorage.getItem("pc-invitation") || "";
@@ -268,14 +288,29 @@ export function AcceptInvitation() {
           invitación y confirma tu correo. El rol y los eventos fueron definidos
           por el administrador.
         </p>
-        {!credential ? (
+        {pending && (
+          <p className="notice" style={{ marginTop: 16 }}>
+            Te invitaron como{" "}
+            <b>
+              {invitationRoles[pending.role]}
+              {pending.include_access ? " + acceso QR" : ""}
+            </b>
+            . Tu cuenta está lista; falta activar estos permisos.
+          </p>
+        )}
+        {!credential && !pending ? (
           <p className="notice error">
             Abre el enlace de invitación que recibiste por correo.
           </p>
         ) : !data.actor ? (
-          <a className="btn primary" href="/login">
-            Iniciar sesión o crear cuenta
-          </a>
+          <div className="buttons">
+            <a className="btn primary" href="/login?invitation=1&register=1">
+              Crear cuenta para aceptar la invitación
+            </a>
+            <a className="btn" href="/login?invitation=1">
+              Ya tengo una cuenta
+            </a>
+          </div>
         ) : (
           <>
             <p style={{ margin: "20px 0" }}>
@@ -286,7 +321,12 @@ export function AcceptInvitation() {
               disabled={busy}
               onClick={async () => {
                 const r = await run(
-                  { action: "invite_accept", token: credential },
+                  credential
+                    ? { action: "invite_accept", token: credential }
+                    : {
+                        action: "invite_accept_pending",
+                        invitation_id: pending!.id,
+                      },
                   "Invitación aceptada",
                 );
                 if (r) {
@@ -313,7 +353,7 @@ export function AcceptInvitation() {
                 });
                 if (response.ok) {
                   await refresh();
-                  navigate("/login");
+                  navigate("/login?invitation=1");
                 }
               }}
             >

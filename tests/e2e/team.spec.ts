@@ -6,6 +6,68 @@ async function login(page: Page, name: string) {
   await page.getByRole("button", { name, exact: true }).click();
   await expect(page.locator(".nav-foot")).toContainText(name);
 }
+
+test("cuenta ya creada retoma invitación de administrador en otra pestaña sin enlace ni token local", async ({
+  page,
+  context,
+}) => {
+  await login(page, "Administración demo");
+  const created = await page.request.post("/api/commands", {
+    headers: { Origin: "http://127.0.0.1:3100" },
+    data: {
+      action: "invite_create",
+      name: "Admin invitado DEMO",
+      email: "customer@example.test",
+      role: "platform_admin",
+      event_ids: [],
+    },
+  });
+  expect(created.status()).toBe(200);
+  await login(page, "Comprador demo");
+  const second = await context.newPage();
+  await second.goto("/account/profile");
+  expect(
+    await second.evaluate(() => sessionStorage.getItem("pc-invitation")),
+  ).toBeNull();
+  await expect(
+    second.getByRole("heading", {
+      name: "Tienes una invitación pendiente al equipo",
+      exact: true,
+    }),
+  ).toBeVisible();
+  const before = await (await second.request.get("/api/state")).json();
+  expect(before.permissions.admin).toBe(false);
+  await second
+    .getByRole("link", {
+      name: "Continuar y activar permisos del equipo",
+      exact: true,
+    })
+    .click();
+  await expect(second.getByText(/Te invitaron como/)).toContainText(
+    "Administrador global",
+  );
+  await second
+    .getByRole("button", { name: "Aceptar invitación", exact: true })
+    .click();
+  await expect(second).toHaveURL(/\/account\/profile$/);
+  const after = await (await second.request.get("/api/state")).json();
+  expect(after.actor.id).toBe(before.actor.id);
+  expect(after.permissions.admin).toBe(true);
+  expect(after.pending_invitation).toBeNull();
+  await second.close();
+  // Restore this isolated fixture so subsequent tests can still exercise a regular buyer.
+  await login(page, "Administración demo");
+  const restored = await page.request.post("/api/commands", {
+    headers: { Origin: "http://127.0.0.1:3100" },
+    data: {
+      action: "team_update",
+      user_id: customer,
+      platform_admin: false,
+      assignments: [],
+    },
+  });
+  expect(restored.status()).toBe(200);
+});
 test("incluir acceso en invitación y editar taquilla/lector desde usuarios sin eliminar cuenta", async ({
   page,
 }) => {

@@ -201,6 +201,9 @@ export async function state(db: DB, a: Actor | null) {
       actor: a,
       profile,
       invitations,
+      pending_invitation: await (
+        await import("./invitations")
+      ).pendingInvitation(tx, a),
       permissions: {
         admin: isAdmin,
         manage: manageable,

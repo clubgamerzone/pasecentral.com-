@@ -8,13 +8,15 @@ const auth = vi.hoisted(() => ({
   verifyOtp: vi.fn(),
   setSession: vi.fn(),
   signUp: vi.fn(),
+  signInWithPassword: vi.fn(),
 }));
+const databaseQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth", () => ({
   supabase: async () => ({ auth }),
   demoLogin: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
-  database: async () => ({ query: async () => ({ rows: [{ requests: 1 }] }) }),
+  database: async () => ({ query: databaseQuery }),
 }));
 import { POST } from "../src/app/api/auth/route";
 import { GET } from "../src/app/auth/confirm/route";
@@ -27,11 +29,73 @@ const request = (body: object, origin = base) =>
   });
 beforeEach(() => {
   vi.resetAllMocks();
+  databaseQuery.mockImplementation(async (sql: string) => ({
+    rows: sql.includes("team_invitations") ? [] : [{ requests: 1 }],
+  }));
   vi.stubEnv("APP_MODE", "production");
   vi.stubEnv("APP_URL", base);
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("recuperación de cuenta", () => {
+  it("confirmación en otra pestaña retoma invitación por correo verificado sin conceder rol automáticamente", async () => {
+    auth.verifyOtp.mockResolvedValue({
+      error: null,
+      data: { user: { id: "invited-id", email: "invited@example.test" } },
+    });
+    databaseQuery.mockResolvedValue({
+      rows: [{ id: "pending-id", role: "platform_admin" }],
+    });
+    const r = await GET(
+      new Request(
+        `${base}/auth/confirm?type=signup&token_hash=fake-test-token`,
+      ),
+    );
+    expect(r.headers.get("location")).toBe(`${base}/invite?confirmed=1`);
+    expect(databaseQuery.mock.calls[0][1]).toEqual(["invited@example.test"]);
+    expect(
+      databaseQuery.mock.calls.every(
+        ([sql]) => !String(sql).includes("INSERT"),
+      ),
+    ).toBe(true);
+  });
+  it("sin invitación propia conserva perfil y login solo retoma desde usuario confirmado de Supabase", async () => {
+    auth.verifyOtp.mockResolvedValue({
+      error: null,
+      data: { user: { id: "id", email: "other@example.test" } },
+    });
+    expect(
+      (
+        await GET(
+          new Request(
+            `${base}/auth/confirm?type=signup&token_hash=fake-test-token`,
+          ),
+        )
+      ).headers.get("location"),
+    ).toBe(`${base}/account/profile?confirmed=1`);
+    auth.signInWithPassword.mockResolvedValue({
+      error: null,
+      data: {
+        user: {
+          id: "id",
+          email: "invited@example.test",
+          email_confirmed_at: "2026-01-01",
+        },
+      },
+    });
+    databaseQuery.mockImplementation(async (sql: string) => ({
+      rows: sql.includes("team_invitations")
+        ? [{ id: "invitation-id", role: "platform_admin" }]
+        : [{ requests: 1 }],
+    }));
+    const result = await POST(
+      request({
+        action: "login",
+        email: "invited@example.test",
+        password: "fictional-password-123",
+      }),
+    );
+    expect((await result.json()).next).toBe("/invite");
+  });
   it("confirma registro con datos opcionales y retorno al perfil, sin conceder roles de metadata", async () => {
     auth.signUp.mockResolvedValue({ error: null });
     const r = await POST(

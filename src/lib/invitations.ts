@@ -9,9 +9,24 @@ type InvitationCommand = Extract<
   Command,
   {
     action:
-      "invite_create" | "invite_resend" | "invite_revoke" | "invite_accept";
+      | "invite_create"
+      | "invite_resend"
+      | "invite_revoke"
+      | "invite_accept"
+      | "invite_accept_pending";
   }
 >;
+export async function pendingInvitation(tx: Tx, a: Actor | null) {
+  if (!a?.email_verified || !a.email) return null;
+  return (
+    (
+      await tx.query(
+        "SELECT id,role,include_access,expires_at FROM team_invitations WHERE email=lower($1) AND status='pending' AND expires_at>now() AND app_private.inviter_authorized(created_by,event_ids,role) LIMIT 1",
+        [a.email],
+      )
+    ).rows[0] ?? null
+  );
+}
 const labels: Record<string, string> = {
   platform_admin: "Administrador global",
   organizer: "Organizador",
@@ -36,12 +51,14 @@ export async function invitationCommand(
   a: Actor,
   c: InvitationCommand,
 ): Promise<Row> {
-  if (c.action === "invite_accept") {
+  if (c.action === "invite_accept" || c.action === "invite_accept_pending") {
     await tx.query("LOCK TABLE platform_admins IN SHARE ROW EXCLUSIVE MODE");
     const i = await one(
       tx,
-      "SELECT * FROM team_invitations WHERE token_hash=$1 FOR UPDATE",
-      [hash(c.token)],
+      c.action === "invite_accept"
+        ? "SELECT * FROM team_invitations WHERE token_hash=$1 FOR UPDATE"
+        : "SELECT * FROM team_invitations WHERE id=$1 FOR UPDATE",
+      [c.action === "invite_accept" ? hash(c.token) : c.invitation_id],
     );
     if (!Object.hasOwn(labels, i.role))
       fail(

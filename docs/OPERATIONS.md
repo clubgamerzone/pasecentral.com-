@@ -114,3 +114,7 @@ Vista general y Reportes muestran dona de canal/género/medios, línea diaria y 
 ## Editar personal y combinar caja/acceso
 
 Equipo y usuarios → Invitar: rol Cajero / taquilla ofrece **Incluir acceso**. Usuarios y permisos → **Editar permisos de [persona]**: activar/desactivar caja, lector o administrador por evento. Global también cambia nombre/rol global; gestor de evento solo sus asignaciones. Los roles generales heredados se advierten, no desaparecen al desmarcar evento. No se elimina cuenta o historial. Guía de alcance, migración 009, pruebas y servicios: [TEAM_PERMISSIONS.md](TEAM_PERMISSIONS.md).
+
+## Invitado registrado que aún aparece como comprador
+
+Entrar con el mismo correo invitado → Mi perfil → Continuar y activar permisos del equipo → Aceptar invitación. No crear otra cuenta ni borrar perfil/entradas. Registro desde enlace muestra contexto laboral; confirmar correo retoma pendiente propia, también desde otra pestaña. Rol se activa solo al aceptar, nunca desde metadatos públicos. Si no aparece pendiente, comprobar correo/vencimiento/revocación/alcance del invitador. Guía: [INVITATION_ONBOARDING.md](INVITATION_ONBOARDING.md).

@@ -106,6 +106,7 @@ export const commands = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("invite_resend"), invitation_id: id }),
   z.object({ action: z.literal("invite_revoke"), invitation_id: id }),
+  z.object({ action: z.literal("invite_accept_pending"), invitation_id: id }),
   z.object({
     action: z.literal("invite_accept"),
     token: z.string().regex(/^[A-Za-z0-9_-]{43}$/),

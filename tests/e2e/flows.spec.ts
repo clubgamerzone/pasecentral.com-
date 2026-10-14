@@ -560,7 +560,7 @@ test("perfil con foto privada e invitación a varios eventos", async ({
   await page
     .getByRole("button", { name: "Usar otra cuenta", exact: true })
     .click();
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/login(?:\?invitation=1)?$/);
   await login(page, "Comprador demo");
   await expect(page).toHaveURL(/\/invite$/);
   await page.getByRole("button", { name: "Ahora no", exact: true }).click();

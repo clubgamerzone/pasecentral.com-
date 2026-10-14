@@ -38,6 +38,44 @@ beforeEach(async () => {
 });
 
 describe("Permisos combinados y gestión de equipo por evento", () => {
+  it("invitación pendiente propia se retoma sin token local y exige correo confirmado coincidente", async () => {
+    const created = await execute(db, admin, {
+      action: "invite_create",
+      name: "Admin prueba",
+      email: customer.email,
+      role: "platform_admin",
+      event_ids: [],
+    });
+    const own = await state(db, customer);
+    expect(own.permissions.admin).toBe(false);
+    expect(own.pending_invitation?.id).toBe(created.invitation_id);
+    expect(JSON.stringify(own.pending_invitation)).not.toMatch(
+      /token|encrypted/,
+    );
+    expect((await state(db, box)).pending_invitation).toBeNull();
+    await expect(
+      execute(db, box, {
+        action: "invite_accept_pending",
+        invitation_id: created.invitation_id,
+      }),
+    ).rejects.toThrow("verificada");
+    await expect(
+      execute(
+        db,
+        { ...customer, email_verified: false },
+        {
+          action: "invite_accept_pending",
+          invitation_id: created.invitation_id,
+        },
+      ),
+    ).rejects.toThrow("verificada");
+    await execute(db, customer, {
+      action: "invite_accept_pending",
+      invitation_id: created.invitation_id,
+    });
+    expect((await state(db, customer)).permissions.admin).toBe(true);
+    expect((await state(db, customer)).pending_invitation).toBeNull();
+  });
   it("cajero invitado obtiene acceso solo con la casilla y la edición lo retira sin afectar ventas", async () => {
     const invitation = await execute(db, admin, {
       action: "invite_create",
