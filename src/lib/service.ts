@@ -158,16 +158,25 @@ async function issue(tx: Tx, o: Row, e: Row) {
     [o.id, hash(share), encrypt(share)],
   );
   let seq = e.next_sequence;
+  const attendeeRows = (
+    await tx.query(
+      "SELECT a.id,a.order_item_id,a.ordinal FROM order_attendees a JOIN order_items i ON i.id=a.order_item_id WHERE i.order_id=$1",
+      [o.id],
+    )
+  ).rows;
   for (const i of (
     await tx.query("SELECT * FROM order_items WHERE order_id=$1 ORDER BY id", [
       o.id,
     ])
   ).rows)
     for (let n = 0; n < i.quantity; n++) {
+      const attendee = attendeeRows.find(
+        (a) => a.order_item_id === i.id && a.ordinal === n + 1,
+      );
       const credential = token();
       const num = `PC-${String(e.id).slice(0, 8).toUpperCase()}-${String(seq).padStart(6, "0")}`;
       await tx.query(
-        "INSERT INTO tickets(event_id,ticket_type_id,order_item_id,owner_user_id,event_sequence,visible_number,security_serial,credential_hash,credential_encrypted) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        "INSERT INTO tickets(event_id,ticket_type_id,order_item_id,owner_user_id,event_sequence,visible_number,security_serial,credential_hash,credential_encrypted,attendee_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
         [
           e.id,
           i.ticket_type_id,
@@ -178,6 +187,7 @@ async function issue(tx: Tx, o: Row, e: Row) {
           token().slice(0, 16).toUpperCase(),
           hash(credential),
           encrypt(credential),
+          attendee?.id ?? null,
         ],
       );
     }
@@ -194,6 +204,17 @@ async function createOrder(
   c: Extract<Command, { action: "reserve" | "sell" }>,
 ) {
   const web = c.action === "reserve";
+  for (const item of c.items) {
+    if (item.attendees && item.attendees.length !== item.quantity)
+      fail("Debe haber un registro opcional por cada entrada seleccionada");
+    if (
+      !c.demographics_consent &&
+      item.attendees?.some((p) => p.gender || p.age_band)
+    )
+      fail(
+        "Confirma la autorización para registrar los datos opcionales de asistentes",
+      );
+  }
   const complimentary = !web && c.method === "complimentary";
   if (!web) await permit(tx, a, c.event_id, complimentary ? "manage" : "sell");
   const e = await lockEvent(tx, c.event_id);
@@ -270,9 +291,10 @@ async function createOrder(
       c.idempotency_key,
     ],
   );
-  for (const l of lines)
-    await tx.query(
-      "INSERT INTO order_items(order_id,event_id,ticket_type_id,pricing_phase_id,quantity,unit_price_cop,line_total_cop,type_name,phase_name) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+  for (const l of lines) {
+    const item = await one(
+      tx,
+      "INSERT INTO order_items(order_id,event_id,ticket_type_id,pricing_phase_id,quantity,unit_price_cop,line_total_cop,type_name,phase_name) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id",
       [
         o.id,
         e.id,
@@ -285,6 +307,16 @@ async function createOrder(
         l.phase.name,
       ],
     );
+    await tx.query(
+      "INSERT INTO order_attendees(order_item_id,ordinal,gender,age_band,demographics_consent) SELECT $1,n,CASE WHEN $4::boolean THEN $3::jsonb->(n-1)->>'gender' ELSE NULL END,CASE WHEN $4::boolean THEN $3::jsonb->(n-1)->>'age_band' ELSE NULL END,$4 FROM generate_series(1,$2::int) n",
+      [
+        item.id,
+        l.quantity,
+        JSON.stringify(l.attendees ?? []),
+        c.demographics_consent,
+      ],
+    );
+  }
   const payment = await one(
     tx,
     `INSERT INTO payments(order_id,provider,method,reference,amount_cop,status,verified_by,verified_at,cash_session_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
@@ -306,6 +338,7 @@ async function createOrder(
       [cash.id, payment.id, total, a.id],
     );
   if (!web) {
+    await tx.query("UPDATE orders SET confirmed_at=now() WHERE id=$1", [o.id]);
     await issue(tx, o, e);
     await audit(
       tx,
@@ -404,7 +437,10 @@ export async function settle(
     ]);
     return { status: "needs_review" };
   }
-  await tx.query("UPDATE orders SET status='confirmed' WHERE id=$1", [o.id]);
+  await tx.query(
+    "UPDATE orders SET status='confirmed',confirmed_at=coalesce(confirmed_at,now()) WHERE id=$1",
+    [o.id],
+  );
   await issue(tx, o, e);
   await audit(tx, null, "payment_approved", "order", o.id, {
     transactionId: input.transactionId,

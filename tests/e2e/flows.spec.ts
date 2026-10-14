@@ -308,7 +308,23 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
   await login(page, "Comprador demo");
   await page.goto("/events/noche-tropical-demo");
   await page.getByLabel("Cantidad General").selectOption("2");
-  await page.getByRole("checkbox").check();
+  await page
+    .getByText("Datos opcionales de cada asistente", { exact: true })
+    .click();
+  await page.getByRole("checkbox", { name: /Autorizo el uso/ }).check();
+  await page
+    .getByLabel("Género — General 1", { exact: true })
+    .selectOption("female");
+  await page
+    .getByLabel("Rango de edad — General 1", { exact: true })
+    .selectOption("25_34");
+  await page
+    .getByLabel("Género — General 2", { exact: true })
+    .selectOption("male");
+  await page
+    .getByLabel("Rango de edad — General 2", { exact: true })
+    .selectOption("6_12");
+  await page.getByRole("checkbox", { name: /Acepto las/ }).check();
   await page.getByRole("button", { name: "Reservar y continuar" }).click();
   await expect(page.locator(".status-banner")).toContainText(
     "Esperando confirmación",

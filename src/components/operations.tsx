@@ -3,6 +3,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
 import { EventDetails, EditTicketType } from "./event-editing";
 import { AuditGuide } from "./audit-guide";
+import {
+  AnalyticsPanel,
+  analyticsQuery,
+  initialAnalyticsFilters,
+} from "./analytics";
+import { AttendeeFields, attendeeItems } from "./attendee-fields";
+import type { Attendee } from "@/lib/demographics";
 import { auditOperation, auditEntity } from "@/lib/audit-labels";
 import {
   Plus,
@@ -643,6 +650,8 @@ export function UserManagement({ eventId }: { eventId?: string }) {
 }
 export function BoxOffice() {
   const { data, run, busy, navigate } = useApp();
+  const [people, setPeople] = useState<Record<string, Attendee>>({}),
+    [consent, setConsent] = useState(false);
   const [event, setEvent] = useState(data.permissions.sell[0] ?? ""),
     [method, setMethod] = useState("cash"),
     [quantities, setQuantities] = useState<Record<string, number>>({}),
@@ -757,12 +766,8 @@ export function BoxOffice() {
                 {
                   action: "sell",
                   event_id: event,
-                  items: Object.entries(quantities)
-                    .filter(([, n]) => n > 0)
-                    .map(([ticket_type_id, quantity]) => ({
-                      ticket_type_id,
-                      quantity,
-                    })),
+                  items: attendeeItems(quantities, people, consent),
+                  demographics_consent: consent,
                   ...b,
                   method,
                   verified: b.verified === "on",
@@ -824,6 +829,14 @@ export function BoxOffice() {
                 <Field name="reason" label="Motivo de la cortesía" />
               )}
             </div>
+            <AttendeeFields
+              types={types}
+              quantities={quantities}
+              people={people}
+              onChange={setPeople}
+              consent={consent}
+              onConsent={setConsent}
+            />
             <div className="summary-line total">
               <span>Total</span>
               <span>{money(total)}</span>
@@ -1558,57 +1571,23 @@ export function Orders({
 }
 export function Reports() {
   const { data } = useApp();
-  const [event, setEvent] = useState("");
-  const orders = data.orders.filter(
-    (o) =>
-      data.permissions.manage.includes(o.event_id) &&
-      (!event || o.event_id === event),
-  );
-  const ids = orders.map((o) => o.id),
-    lines = data.items.filter(
-      (i) =>
-        ids.includes(i.order_id) &&
-        orders.some(
-          (o) =>
-            o.id === i.order_id &&
-            ["confirmed", "partially_refunded", "refunded"].includes(o.status),
-        ),
-    );
-  const grouped = (key: "phase_name" | "type_name") =>
-    Object.entries(
-      lines.reduce<Record<string, { qty: number; total: number }>>((r, i) => {
-        const k = i[key];
-        r[k] ??= { qty: 0, total: 0 };
-        r[k].qty += i.quantity;
-        r[k].total += i.line_total_cop;
-        return r;
-      }, {}),
-    );
+  const [filters, setFilters] = useState({ ...initialAnalyticsFilters });
+  const query = analyticsQuery(filters);
   return (
     <>
       <Heading
         title="Los números detrás de la noche"
-        subtitle="Ventas, asistencia, caja e incidencias. Exportaciones privadas para tu organización."
+        subtitle="Ventas, audiencia y comparación de eventos. Exportaciones privadas."
       />
-      <section className="panel" style={{ marginBottom: 22 }}>
-        <Field name="report-event" label="Filtrar por evento">
-          <select
-            id="report-event"
-            value={event}
-            onChange={(e) => setEvent(e.target.value)}
-          >
-            <option value="">Todos los eventos</option>
-            {data.events
-              .filter((e) => data.permissions.manage.includes(e.id))
-              .map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.title}
-                </option>
-              ))}
-          </select>
-        </Field>
-      </section>
-      <div className="report-grid">
+      <AnalyticsPanel filters={filters} onChange={setFilters} />
+      <h2 style={{ marginTop: 28 }}>Exportaciones de registros</h2>
+      <p className="helper">
+        Aplican los eventos y las fechas seleccionadas arriba. Ventas y
+        asistentes se agrupan por confirmación de la orden; pendientes por
+        creación y cajas por cierre (o apertura si siguen abiertas). No incluyen
+        datos demográficos individuales.
+      </p>
+      <div className="report-grid" style={{ marginTop: 20 }}>
         {[
           ["sales", "Ventas", "Órdenes, canal, importes y estado."],
           [
@@ -1631,84 +1610,13 @@ export function Reports() {
             <FileText size={22} />
             <h3 style={{ marginTop: 14 }}>{title}</h3>
             <p>{desc}</p>
-            <a
-              className="btn"
-              href={`/api/reports?kind=${key}${event ? `&event=${event}` : ""}`}
-            >
+            <a className="btn" href={`/api/reports?kind=${key}&${query}`}>
               <Download />
               Exportar CSV
             </a>
           </section>
         ))}
       </div>
-      <div className="report-grid" style={{ marginTop: 22 }}>
-        {(["type_name", "phase_name"] as const).map((key) => (
-          <section className="panel" key={key}>
-            <h2>
-              {key === "type_name" ? "Ventas por localidad" : "Ventas por fase"}
-            </h2>
-            <div className="table-wrap" style={{ marginTop: 20 }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Entradas</th>
-                    <th>Importe de venta</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {grouped(key).map(([name, r]) => (
-                    <tr key={name}>
-                      <td>{name}</td>
-                      <td>{r.qty}</td>
-                      <td>{money(r.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
-      </div>
-      <section className="panel" style={{ marginTop: 22 }}>
-        <h2>Ventas por canal y operador</h2>
-        <div className="table-wrap" style={{ marginTop: 20 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Operador</th>
-                <th>Canal</th>
-                <th>Órdenes confirmadas</th>
-                <th>Importe de venta</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.people.flatMap((p) =>
-                ["web", "box_office", "complimentary"].map((channel) => {
-                  const rows = orders.filter(
-                    (o) =>
-                      o.created_by === p.id &&
-                      o.channel === channel &&
-                      ["confirmed", "partially_refunded", "refunded"].includes(
-                        o.status,
-                      ),
-                  );
-                  return rows.length ? (
-                    <tr key={`${p.id}-${channel}`}>
-                      <td>{p.name}</td>
-                      <td>{channel}</td>
-                      <td>{rows.length}</td>
-                      <td>
-                        {money(rows.reduce((s, o) => s + o.total_cop, 0))}
-                      </td>
-                    </tr>
-                  ) : null;
-                }),
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
       <section className="panel" style={{ marginTop: 22 }}>
         <h2>Auditoría de operaciones</h2>
         <p className="helper">

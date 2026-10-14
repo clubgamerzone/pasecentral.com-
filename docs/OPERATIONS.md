@@ -100,3 +100,6 @@ Guía privada: TEST_DATA_RESET.md. No usar DELETE/TRUNCATE indiscriminado ni rei
 ## Entender códigos de auditoría
 
 Reportes → Auditoría de operaciones → **Guía de códigos de operación**; buscar código o palabra. Cada fila presenta nombre y explicación en español junto al código original. La guía está disponible incluso sin historial, no crea auditoría ni cambia permisos. Definiciones y mantenimiento: AUDIT_GUIDE.md.
+# Vista general y análisis ampliados
+
+Abrir Vista general (`/admin`) o Análisis y reportes (`/admin/reports`). Filtrar año del evento, seleccionar un evento/otro para comparar y fechas de ventas. Cambiar el orden del ranking, consolidar fases/localidades y descargar los CSV del análisis. En compra web o taquilla abrir **Datos opcionales de cada asistente** para recoger género/rango de edad por entrada con autorización. Si se omiten, aparecen como Sin dato; no se rellenan datos históricos. Estadísticas solo para administradores/organizadores de eventos autorizados. Definiciones, archivos, migración 007, pruebas y límites: [ANALYTICS.md](ANALYTICS.md).

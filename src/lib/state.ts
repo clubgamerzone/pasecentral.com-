@@ -82,7 +82,7 @@ export async function state(db: DB, a: Actor | null) {
     if (a) {
       orders = (
         await tx.query(
-          `SELECT id,event_id,buyer_user_id,buyer_name,buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) ORDER BY created_at DESC`,
+          `SELECT id,event_id,buyer_user_id,buyer_name,buyer_email,buyer_category,channel,status,total_cop,subtotal_cop,fees_cop,reservation_expires_at,created_at,confirmed_at,created_by FROM orders WHERE buyer_user_id=$1 OR event_id=ANY($2::uuid[]) ORDER BY created_at DESC`,
           [a.id, sellable],
         )
       ).rows;

@@ -1,5 +1,8 @@
-export function csv(rows: Record<string, unknown>[]) {
-  const keys = Object.keys(rows[0] ?? {});
+export function csv(
+  rows: Record<string, unknown>[],
+  columns?: Record<string, string>,
+) {
+  const keys = columns ? Object.keys(columns) : Object.keys(rows[0] ?? {});
   const quote = (value: unknown) => {
     let v =
       value == null
@@ -13,7 +16,7 @@ export function csv(rows: Record<string, unknown>[]) {
   return (
     "\uFEFF" +
     [
-      keys.map(quote).join(","),
+      keys.map((k) => quote(columns?.[k] ?? k)).join(","),
       ...rows.map((r) => keys.map((k) => quote(r[k])).join(",")),
     ].join("\r\n")
   );

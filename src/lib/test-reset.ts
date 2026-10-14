@@ -8,6 +8,7 @@ export const resetTables = [
   "cash_movements",
   "delivery_jobs",
   "payments",
+  "order_attendees",
   "order_items",
   "orders",
   "cash_sessions",

@@ -8,6 +8,31 @@ const items = z
     z.object({
       ticket_type_id: id,
       quantity: z.coerce.number().int().min(1).max(20),
+      attendees: z
+        .array(
+          z.object({
+            gender: z
+              .enum(["female", "male", "other", "prefer_not_to_say"])
+              .nullable()
+              .default(null),
+            age_band: z
+              .enum([
+                "0_5",
+                "6_12",
+                "13_17",
+                "18_24",
+                "25_34",
+                "35_44",
+                "45_54",
+                "55_64",
+                "65_plus",
+              ])
+              .nullable()
+              .default(null),
+          }),
+        )
+        .max(20)
+        .optional(),
     }),
   )
   .min(1)
@@ -118,6 +143,7 @@ export const commands = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("reserve"),
+    demographics_consent: z.boolean().default(false),
     event_id: id,
     items,
     buyer_name: text,
@@ -128,6 +154,7 @@ export const commands = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("sell"),
+    demographics_consent: z.boolean().default(false),
     event_id: id,
     items,
     buyer_name: z.string().max(300).optional(),

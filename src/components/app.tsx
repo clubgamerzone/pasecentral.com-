@@ -24,11 +24,9 @@ import {
   Bell,
   ChevronRight,
   Wallet,
-  Music2,
   MapPin,
   ArrowRight,
   ShieldCheck,
-  FileText,
 } from "lucide-react";
 import type { state } from "@/lib/state";
 import type { Row } from "@/lib/db";
@@ -45,6 +43,7 @@ import {
 import { EventPurchase, Tickets, Checkout } from "./buyer";
 import { Recovery } from "./recovery";
 import { MyProfile, AcceptInvitation } from "./account";
+import { AnalyticsPanel, initialAnalyticsFilters } from "./analytics";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -771,316 +770,44 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
 }
 export function Dashboard() {
   const { data } = useApp();
-  const [now] = useState(() => Date.now());
-  const [selected, setSelected] = useState(""),
-    [period, setPeriod] = useState("all");
-  const events = data.events.filter(
-    (e) =>
-      data.permissions.manage.includes(e.id) &&
-      (!selected || e.id === selected),
+  const [filters, setFilters] = useState({ ...initialAnalyticsFilters });
+  const managedOrders = data.orders.filter((o) =>
+    data.permissions.manage.includes(o.event_id),
   );
-  const ids = events.map((e) => e.id),
-    since =
-      period === "week"
-        ? now - 7 * 86400000
-        : period === "month"
-          ? now - 30 * 86400000
-          : 0;
-  const orders = data.orders.filter(
-      (o) =>
-        ids.includes(o.event_id) && new Date(o.created_at).getTime() >= since,
-    ),
-    orderIds = orders.map((o) => o.id),
-    tickets = data.tickets.filter((t) => orderIds.includes(t.order_id));
-  const payments = data.payments.filter(
-      (p) => orderIds.includes(p.order_id) && p.status === "approved",
-    ),
-    refunds = data.refunds
-      .filter((r) => orderIds.includes(r.order_id))
-      .reduce((sum, r) => sum + r.amount_cop, 0),
-    collected = payments.reduce((s, p) => s + p.amount_cop, 0),
-    valid = tickets.filter((t) => t.status !== "cancelled"),
-    used = valid.filter((t) => t.status === "used").length,
-    paid = tickets.filter((t) =>
-      orders.some((o) => o.id === t.order_id && o.channel !== "complimentary"),
-    ).length,
-    comp = tickets.length - paid,
-    reservations = orders.filter(
-      (o) =>
-        o.status === "pending_payment" &&
-        new Date(o.reservation_expires_at) > new Date(),
-    ).length;
-  const series = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() - 6 + i);
-    const key = date.toLocaleDateString("es-CO", {
-      timeZone: "America/Bogota",
-    });
-    return {
-      date: key,
-      label: date.toLocaleDateString("es-CO", {
-        weekday: "short",
-        timeZone: "America/Bogota",
-      }),
-      value: payments
-        .filter(
-          (p) =>
-            new Date(p.created_at).toLocaleDateString("es-CO", {
-              timeZone: "America/Bogota",
-            }) === key,
-        )
-        .reduce((s, p) => s + p.amount_cop, 0),
-    };
-  });
-  const max = Math.max(1, ...series.map((s) => s.value));
+  const orderIds = new Set(managedOrders.map((o) => o.id));
+  const failedEmails = data.jobs.filter(
+    (j) => orderIds.has(j.order_id) && j.status === "failed",
+  ).length;
   return (
     <>
       <Heading
         title="Todo está bajo control"
-        subtitle={`Hola, ${data.actor?.name}. Así van tus eventos.`}
+        subtitle="Ventas, público y resultados de tus eventos."
         action={
-          <a href="/admin/events/new" className="btn primary">
+          <a className="btn primary" href="/admin/events/new">
             <Plus />
             Crear evento
           </a>
         }
       />
-      <div className="welcome">
-        <div>
-          <div className="eyebrow" style={{ color: "#b9d998" }}>
-            BUENAS NOCHES EMPIEZAN CON BUENA GESTIÓN
-          </div>
-          <h2>Tú pones la fiesta. Nosotros, el pase.</h2>
-          <p>
-            Ventas, taquilla y acceso conectados. Cada evento con sus propios
-            cupos, precios y equipo.
-          </p>
-        </div>
-        <div className="art">
-          <Ticket />
-        </div>
-      </div>
-      {data.environment !== "production" && (
-        <div className="notice">
-          Indicadores del entorno de pruebas. No representan ventas reales ni
-          dinero recibido en banco.
+      {failedEmails > 0 && (
+        <div className="notice" style={{ marginBottom: 20 }}>
+          {failedEmails} entregas de email fallidas en tus eventos. Revisa la
+          orden correspondiente para reenviar las entradas.
         </div>
       )}
-      <div className="filterbar">
-        <h2>Resumen de operación</h2>
-        <div className="buttons">
-          <select
-            aria-label="Filtrar evento"
-            value={selected}
-            onChange={(e) => setSelected(e.target.value)}
-          >
-            <option value="">Todos los eventos</option>
-            {data.events
-              .filter((e) => data.permissions.manage.includes(e.id))
-              .map((e) => (
-                <option key={e.id} value={e.id}>
-                  {e.title}
-                </option>
-              ))}
-          </select>
-          <select
-            aria-label="Filtrar periodo"
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-          >
-            <option value="all">Todo el periodo</option>
-            <option value="week">Últimos 7 días</option>
-            <option value="month">Últimos 30 días</option>
-          </select>
-        </div>
-      </div>
-      <div className="metrics">
-        {[
-          {
-            label: "Cobros aprobados",
-            value: money(collected),
-            note: `Devoluciones registradas: ${money(refunds)}`,
-            icon: Wallet,
-          },
-          {
-            label: "Entradas vendidas",
-            value: paid,
-            note: `${comp} cortesías · ${reservations} reservas pendientes`,
-            icon: Ticket,
-          },
-          {
-            label: "Ingresos registrados",
-            value: used,
-            note: `${valid.length ? Math.round((used / valid.length) * 100) : 0}% de asistencia sobre entradas activas`,
-            icon: ScanLine,
-          },
-          {
-            label: "Cupos disponibles",
-            value: events.reduce((s, e) => s + e.available, 0),
-            note: `${events.length} eventos · cupos independientes`,
-            icon: Users,
-          },
-        ].map((m) => (
-          <article className="metric" key={m.label}>
-            <div className="metric-top">
-              {m.label}
-              <m.icon />
-            </div>
-            <strong>{m.value}</strong>
-            <small>{m.note}</small>
-          </article>
-        ))}
-      </div>
-      <div className="grid-main">
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Cobros de la semana</h2>
-            <span className="badge gray">COP</span>
-          </div>
-          <div
-            className="bar-chart"
-            aria-label="Cobros aprobados de los últimos siete días"
-          >
-            {series.map((s) => (
-              <div className="bar-group" key={s.date}>
-                <div
-                  className="bar"
-                  style={{ height: `${Math.max(2, (s.value / max) * 85)}%` }}
-                  title={`${s.date}: ${money(s.value)}`}
-                />
-                <span>{s.label}</span>
-              </div>
-            ))}
-          </div>
-          <div className="chart-note">
-            <span>
-              <span className="status-dot" />
-              Cobros aprobados
-            </span>
-            <b>Comisiones y conciliación bancaria pendientes</b>
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-head">
-            <h2>En tu agenda</h2>
-            <a href="/admin/events">
-              Ver todos
-              <ArrowUpRight size={13} />
-            </a>
-          </div>
-          {events.slice(0, 3).map((e, i) => (
-            <a href={`/admin/events/${e.id}`} className="event-row" key={e.id}>
-              <div className={`event-cover ${i % 2 ? "electronic" : ""}`}>
-                {e.cover_url ? (
-                  <img
-                    src={e.cover_url}
-                    alt={`Portada de ${e.title}`}
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                      position: "relative",
-                      zIndex: 1,
-                    }}
-                  />
-                ) : (
-                  <Music2 />
-                )}
-              </div>
-              <div className="event-copy">
-                <h3>{e.title}</h3>
-                <p>
-                  <CalendarDays />
-                  {day(e.starts_at)} · {e.venue_name}
-                </p>
-              </div>
-              <div className="event-side">
-                <Badge status={e.status} />
-                <strong>{e.available} cupos</strong>
-              </div>
-            </a>
-          ))}
-          {!events.length && <Empty>Tus eventos aparecerán aquí.</Empty>}
-        </section>
-      </div>
-      <section className="panel">
+      <AnalyticsPanel filters={filters} onChange={setFilters} />
+      <section className="panel" style={{ marginTop: 22 }}>
         <div className="panel-head">
-          <h2>Últimas órdenes</h2>
-          <a href="/admin/reports">
-            Explorar reportes
-            <ArrowUpRight size={13} />
-          </a>
+          <h2>Últimas órdenes de tus eventos</h2>
+          <a href="/admin/events">Administrar eventos</a>
         </div>
-        <OrderTable orders={orders.slice(0, 6)} />
-        <div className="table-footer">
-          <span>Datos del servidor · zona horaria de Bogotá</span>
-          <span>
-            {
-              data.attempts.filter(
-                (a) => ids.includes(a.event_id) && a.result !== "accepted",
-              ).length
-            }{" "}
-            lecturas rechazadas
-          </span>
-        </div>
+        <p className="helper">
+          Lista reciente de todos tus eventos administrados, independiente de
+          los filtros del análisis.
+        </p>
+        <OrderTable orders={managedOrders.slice(0, 6)} />
       </section>
-      <div className="grid-main" style={{ marginTop: 22 }}>
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Por medio de pago</h2>
-          </div>
-          {["cash", "transfer", "checkout", "complimentary"].map((method) => (
-            <div className="summary-line" key={method}>
-              <span>
-                {
-                  {
-                    cash: "Efectivo",
-                    transfer: "Transferencia verificada",
-                    checkout: "Online · Wompi",
-                    complimentary: "Cortesías",
-                  }[method]
-                }
-              </span>
-              <b>
-                {money(
-                  payments
-                    .filter((p) => p.method === method)
-                    .reduce((s, p) => s + p.amount_cop, 0),
-                )}
-              </b>
-            </div>
-          ))}
-        </section>
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Alertas operativas</h2>
-          </div>
-          <p className="compact">
-            {orders.filter((o) => o.status === "needs_review").length} pagos que
-            requieren revisión
-          </p>
-          <p className="compact">
-            {
-              data.jobs.filter(
-                (j) => orderIds.includes(j.order_id) && j.status === "failed",
-              ).length
-            }{" "}
-            entregas de email fallidas
-          </p>
-          <p className="compact">
-            {tickets.filter((t) => t.status === "cancelled").length} entradas
-            anuladas
-          </p>
-          <a
-            href="/admin/reports"
-            className="btn small"
-            style={{ marginTop: 18 }}
-          >
-            <FileText />
-            Consultar incidencias
-          </a>
-        </section>
-      </div>
     </>
   );
 }

@@ -1303,3 +1303,29 @@ textarea {
   width: 100%;
   max-width: 500px;
 }
+.analytics-table {
+  max-height: 450px;
+  overflow: auto;
+}
+.analytics-bar-row {
+  margin: 16px 0;
+}
+.analytics-bar-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.analytics-bar-track {
+  height: 10px;
+  background: var(--line);
+  border-radius: 8px;
+  margin-top: 7px;
+  overflow: hidden;
+}
+.analytics-bar-track span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 8px;
+}

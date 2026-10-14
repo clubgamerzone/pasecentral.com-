@@ -17,10 +17,14 @@ import { useApp, Heading, Field, Empty, Badge, money, when } from "./app";
 import { formValues } from "./operations";
 import type { Row } from "@/lib/db";
 import { EventGallery } from "./event-editing";
+import { AttendeeFields, attendeeItems } from "./attendee-fields";
+import type { Attendee } from "@/lib/demographics";
 export function EventPurchase({ slug }: { slug: string }) {
   const { data, run, busy, navigate } = useApp();
   const [quantities, setQuantities] = useState<Record<string, number>>({}),
     [key] = useState(() => crypto.randomUUID());
+  const [people, setPeople] = useState<Record<string, Attendee>>({}),
+    [consent, setConsent] = useState(false);
   const e = data.events.find(
     (e) => e.slug === slug && e.status === "published",
   );
@@ -148,12 +152,8 @@ export function EventPurchase({ slug }: { slug: string }) {
                   {
                     action: "reserve",
                     event_id: e.id,
-                    items: Object.entries(quantities)
-                      .filter(([, n]) => n > 0)
-                      .map(([ticket_type_id, quantity]) => ({
-                        ticket_type_id,
-                        quantity,
-                      })),
+                    items: attendeeItems(quantities, people, consent),
+                    demographics_consent: consent,
                     ...formValues(ev.currentTarget),
                     idempotency_key: key,
                   },
@@ -178,6 +178,14 @@ export function EventPurchase({ slug }: { slug: string }) {
                   name="buyer_phone"
                   label="Teléfono (opcional)"
                   required={false}
+                />
+                <AttendeeFields
+                  types={types}
+                  quantities={quantities}
+                  people={people}
+                  onChange={setPeople}
+                  consent={consent}
+                  onConsent={setConsent}
                 />
                 <label className="inline-check">
                   <input type="checkbox" required />

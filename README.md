@@ -140,3 +140,6 @@ Lee [docs/LAUNCH_CHECKLIST.md](docs/LAUNCH_CHECKLIST.md): credenciales y pruebas
 ### Perfil e invitaciones
 
 En **Mi perfil** (`/account/profile`) se editan nombre, teléfono, biografía y foto privada (JPG/PNG/WebP, hasta 2 MB). Administrador global invita cuentas desde **Equipo y usuarios**, con rol y varios eventos. El destinatario debe confirmar su propio correo y aceptar; no compartir contraseñas. Configuración, migración 004, bucket avatars y cola Resend: [docs/PROFILE_TEAM_SETUP.md](docs/PROFILE_TEAM_SETUP.md).
+## Análisis de ventas y audiencia
+
+Vista general y Análisis/reportes permiten comparar eventos/años y consultar fases, localidades, canales, operadores y audiencia. Género y rango de edad son opcionales por asistente en compra web/taquilla, con autorización; se muestran datos faltantes y no se infiere público histórico. Migración 007 aditiva, API solo de agregados y CSV privados. Uso, definiciones y pruebas: [docs/ANALYTICS.md](docs/ANALYTICS.md).
