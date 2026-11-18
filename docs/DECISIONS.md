@@ -102,3 +102,17 @@ Gráficos React/SVG/CSS propios sobre los agregados autorizados existentes, sin 
 ## Gestión ampliada de equipo — 2026-10-14
 
 Casilla Incluir acceso persiste intención, acepta dos roles existentes box_office/access_staff y no crea un rol combinado especial. Edición por evento reemplaza asignaciones directas atómicamente, conserva otras y alerta sobre herencia global/organización. Gestores de evento pueden invitar/editar dentro de todos sus eventos autorizados; no editar nombres/globales ni administrador global. Solo global edita nombre/rol global, sin retirar último admin. Invitación aceptada nunca se reaplica después de retirar roles; creador se revalida en worker/aceptación. RLS restringe invitaciones al alcance completo y helper privilegiado no es ejecutable por clientes. Guía TEAM_PERMISSIONS.md; migración 009 aditiva, ninguna asignación existente modificada al desplegar.
+
+2026-11-18 - STARPOS IF4: ante solicitud del propietario se ensaya un incremento de oscuridad 15 a 18 en una sola muestra RAW (TEST-004), manteniendo 50.8 mm/s y formato para comparacion. No escalar automaticamente si persiste transferencia irregular; comprobar ribbon/cartulina/montaje. Sin homologacion de QR ni cambio de preferencias Windows confirmado. Detalles: docs/PRINTER_STAR_IF42.md.
+
+2026-11-18 - Impresion: segundo incremento solicitado por propietario, D18 a D21 en una copia TEST-005 manteniendo velocidad/diseno. No cambiar fuente simultaneamente para distinguir efecto de energia; si persiste transferencia irregular comprobar montaje/material antes de otro incremento. Lectura EDA51 sigue pendiente.
+
+2026-11-18 - Impresion: prueba unica TEST-006 con D26 solicitado por propietario, mismo diseno/velocidad. Se fija energia en RAW para reflejar el valor solicitado, sin asumir que defaults Windows se apliquen. No concluir mejora ni escalar sin evidencia fisica.
+
+2026-11-18 - Diagnostico impresora: tras persistir huecos a D26, mantener energia/velocidad y comparar tipografia de proporciones normales con bloques solidos pequenos en tres posiciones (TEST-007). Permite separar apariencia de fuente y transferencia irregular sin asumir averia. No incremento de oscuridad ni ajustes mecanicos.
+
+STARPOS: comprobar cara imprimible del material antes de diagnosticar transferencia/consumibles. Propietario resolvio calidad invirtiendo papel (TEST-009). Para alinear cortes, verificar marcas inferiores tras inversion y paso real antes de offsets/calibracion; modo continuo usado hasta ahora no registra perforaciones.
+
+## Papel por puesto de taquilla (2026-11-18)
+Selector por navegador, no esquema de BD: recibo80 heredado, STARPOS70x40 y concierto70x100. Separar ESC/POS de ZPL por perfil para no enviar comandos incompatibles. Mantener PDF digital/QR original, permisos/auditoria actuales. Formatos ZPL codifican texto como UTF8 hexadecimal y calculan QR con margen blanco segun contenido. Perfil40 incorpora ajuste+4mm confirmado por propietario en TEST-013; no extrapolar al papel100. Configuracion avanzada validada; no guardar EEPROM ni cortar/calibrar remotamente. Browser no configura sensor/energia. QZ firmado depende de instalacion/certificado/nombre autorizado ya previstos, sin afirmar que flujo completo este homologado.
+Seguridad detectada durante verificaciones: npm audit identifico next16.4.0 vulnerable; actualizados next y eslint-config-next a16.4.6 (patch), lockfile fijado. Audit de dependencias de produccion posterior:0 vulnerabilidades. No se ejecuto actualizacion automatica mayor ni se cambiaron credenciales.

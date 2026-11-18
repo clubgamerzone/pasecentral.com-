@@ -118,3 +118,6 @@ Equipo y usuarios → Invitar: rol Cajero / taquilla ofrece **Incluir acceso**. 
 ## Invitado registrado que aún aparece como comprador
 
 Entrar con el mismo correo invitado → Mi perfil → Continuar y activar permisos del equipo → Aceptar invitación. No crear otra cuenta ni borrar perfil/entradas. Registro desde enlace muestra contexto laboral; confirmar correo retoma pendiente propia, también desde otra pestaña. Rol se activa solo al aceptar, nunca desde metadatos públicos. Si no aparece pendiente, comprobar correo/vencimiento/revocación/alcance del invitador. Guía: [INVITATION_ONBOARDING.md](INVITATION_ONBOARDING.md).
+
+## Seleccionar papel para boletas
+En pantalla de entradas, operadores de taquilla usan Papel e impresora: recibo80mm, boleta70x40mm o concierto70x100mm. Preferencias guardadas por navegador; Deteccion/material y ajuste vertical en desplegable. QZ usa ESC/POS para80 y ZPL para70, segun impresora configurada; browser requiere seleccionar papel/escala en controlador. Guia completa y limites de homologacion: docs/PRINT_PAPER_SETTINGS.md. Implementacion: print-options.tsx, print-settings.ts, ticket-zpl.ts y printer.ts.

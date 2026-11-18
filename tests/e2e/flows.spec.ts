@@ -231,6 +231,34 @@ test("taquilla vende, descarga PDF, acceso admite una sola vez y caja cierra", a
   await page.getByRole("button", { name: "Confirmar cobro y emitir" }).click();
   await expect(page.locator(".ticket")).toHaveCount(1);
   await expect(page.locator(".ticket img")).toBeVisible();
+  await page.getByLabel("Tamaño del papel").selectOption("ticket70x40");
+  await page.reload();
+  await expect(page.getByLabel("Tamaño del papel")).toHaveValue("ticket70x40");
+  await expect(
+    page.getByLabel("Ajuste vertical (mm; positivo baja el diseño)"),
+  ).toHaveValue("4");
+  for (const paper of ["ticket70x40", "ticket70x100"]) {
+    await page.getByLabel("Tamaño del papel").selectOption(paper);
+    await page.emulateMedia({ media: "print" });
+    const bounds = await page.locator(".paper-ticket").evaluate((el) => {
+      const page = el.getBoundingClientRect();
+      const terms = el
+        .querySelector(".paper-ticket-terms")!
+        .getBoundingClientRect();
+      const qr = el.querySelector("img")!.getBoundingClientRect();
+      return { bottom: page.bottom, terms: terms.bottom, qr: qr.bottom };
+    });
+    expect(
+      bounds.terms,
+      `${paper}: ${JSON.stringify(bounds)}`,
+    ).toBeLessThanOrEqual(bounds.bottom);
+    expect(
+      bounds.qr,
+      `${paper}: ${JSON.stringify(bounds)}`,
+    ).toBeLessThanOrEqual(bounds.bottom);
+    await expect(page.locator(".ticket-sheet")).toBeHidden();
+    await page.emulateMedia({ media: "screen" });
+  }
   const orderId = new URL(page.url()).pathname.split("/")[2];
   const doc = await page.request.post("/api/tickets", {
     headers: { origin: "http://127.0.0.1:3100" },

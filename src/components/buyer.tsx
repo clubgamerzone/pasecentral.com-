@@ -19,6 +19,8 @@ import type { Row } from "@/lib/db";
 import { EventGallery } from "./event-editing";
 import { AttendeeFields, attendeeItems } from "./attendee-fields";
 import type { Attendee } from "@/lib/demographics";
+import { PaperTickets, PrintOptions, usePrintSettings } from "./print-options";
+import { PAPER_SIZES } from "@/lib/print-settings";
 export function EventPurchase({ slug }: { slug: string }) {
   const { data, run, busy, navigate } = useApp();
   const [quantities, setQuantities] = useState<Record<string, number>>({}),
@@ -439,6 +441,7 @@ export function Checkout({ orderId }: { orderId: string | null }) {
 }
 export function Tickets({ orderId }: { orderId: string }) {
   const { data, run, notify } = useApp();
+  const [printSettings, updatePrintSettings] = usePrintSettings();
   const [doc, setDoc] = useState<Row | null>(null),
     [error, setError] = useState(""),
     [printing, setPrinting] = useState(false),
@@ -559,7 +562,7 @@ export function Tickets({ orderId }: { orderId: string }) {
       }
       if (qz) {
         const { QZTrayAdapter } = await import("@/lib/printer");
-        await new QZTrayAdapter().print(doc.tickets, doc.event);
+        await new QZTrayAdapter().print(doc.tickets, doc.event, printSettings);
       } else window.print();
       for (const job of jobs)
         await run(
@@ -618,6 +621,13 @@ export function Tickets({ orderId }: { orderId: string }) {
           </a>
         }
       />
+      {canPrint && (
+        <PrintOptions
+          settings={printSettings}
+          update={updatePrintSettings}
+          disabled={printing}
+        />
+      )}
       <div className="buttons">
         <button className="btn primary" onClick={pdf}>
           <Download />
@@ -627,7 +637,7 @@ export function Tickets({ orderId }: { orderId: string }) {
           <>
             <button className="btn" onClick={() => print()} disabled={printing}>
               <Printer />
-              Imprimir 80 mm
+              Imprimir {PAPER_SIZES[printSettings.paper].label.toLowerCase()}
             </button>
             {process.env.NEXT_PUBLIC_QZ_PRINTER && (
               <button
@@ -636,7 +646,9 @@ export function Tickets({ orderId }: { orderId: string }) {
                 disabled={printing}
               >
                 <Printer />
-                Impresión QZ Tray
+                {printSettings.paper === "receipt80"
+                  ? "Impresión QZ Tray · ESC/POS"
+                  : "Impresión STARPOS · QZ Tray"}
               </button>
             )}
           </>
@@ -702,10 +714,17 @@ export function Tickets({ orderId }: { orderId: string }) {
         ))}
       </div>
       {canPrint && (
+        <PaperTickets
+          tickets={doc.tickets}
+          event={doc.event}
+          settings={printSettings}
+        />
+      )}
+      {canPrint && (
         <p className="helper no-print">
           El diálogo de impresión no confirma que salió papel. Verifica
-          impresora, ancho 80 mm y legibilidad del QR. Las reimpresiones
-          conservan los identificadores.
+          impresora, tamaño de papel seleccionado y legibilidad del QR. Las
+          reimpresiones conservan los identificadores.
         </p>
       )}
       {printJobs.length > 0 && (

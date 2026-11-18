@@ -218,3 +218,88 @@ Diagnóstico del código: registro general + confirmación al perfil + token sol
 Lint/tipos, 93 Vitest, 18 E2E y build pasaron. Casos nuevos de callback/login y aceptación propia sin token; E2E usa segunda pestaña, mismo user_id y rol admin solo tras aceptar; restaura fixture al cerrar. Datos/mensajes/roles de ensayo exclusivamente locales; no se activó la invitación de una persona real ni se envió correo adicional. No nuevas migraciones, claves o plantillas externas. Publicación/inspección de pantalla en verificación. Recomendaciones anteriores de compra de impresora conservadas en PRINTER_RECOMMENDATIONS.md, sin cambiar adaptador/hardware.
 
 Código `709b9f6` Ready (`31VST2omVtCqXhQtb8J1zw5x1om3`, 2026-10-14 15:52 Colombia). Chrome comprobó encabezado de registro de equipo, aviso del mismo correo/continuación y botón contextual, sin introducir datos ni crear cuenta. Evidencia privada `.local/verification/invitation-onboarding-connected.png`; se volvió a Equipo y usuarios. Callback/Auth real con correo del invitado no se ensayó aceptando en su nombre: probado con mocks de proveedor y E2E local; se preservaron las cuentas/roles reales. Implementación y documentación publicadas en main.
+
+## Impresora conectada — 2026-11-18
+
+Diagnóstico Windows de solo lectura: detectada STAR POS STAR-iF42 en USB002, estado PnP OK. Colas POS-80C/POSPrinter POS58 en USB001 y sin conexión; POS-58 en LPT1. No se cambió driver/puerto ni se imprimió. Guía docs/PRINTER_STAR_IF42.md; cola correcta, especificaciones de papel y prueba física siguen pendientes. Sin cambios cloud o datos de clientes.
+
+
+### Controlador STARPOS asociado — 2026-11-18
+
+Paquete oficial iDPRT/Seagull 12.1.0 descargado y firmas verificadas. Instalado INF original mediante elevación Windows y creada cola STAR POS STAR-iF42 (ZPL 203 dpi) en USB002, estado Normal/WorkOffline=false/cero trabajos. Driver compatible por emulación ZPL iDPRT iF4 203 dpi; sin coincidencia STARPOS exacta ni homologación física aún. Colas previas preservadas, sin cambiar impresora predeterminada ni imprimir. Fuentes, ruta privada, comandos, hash, límites y próximos pasos en docs/PRINTER_STAR_IF42.md. No cambios de código/cloud ni secretos guardados.
+
+
+### Muestra de impresión 70 x 40 mm — 2026-11-18
+
+Usuario autorizó una prueba con papel 7x4 y ribbon; interpretado como centímetros ancho×alto. Enviada una copia ZPL por Winspool RAW a STAR POS STAR-iF42 USB002, trabajo 2/429 bytes. Modo transferencia térmica, texto y QR de ensayo sin validez de ingreso; sin datos reales/cloud ni corte/calibración automáticos. Código privado y pasos en docs/PRINTER_STAR_IF42.md. Resultado físico/lectura Honeywell pendientes de confirmación del usuario.
+
+
+### Error físico antes de imprimir STARPOS — 2026-11-18
+
+Usuario informa muestra sin impresión/movimiento y LED rojo parpadeante. Fotos muestran tabla de estados y papel de marcas negras; cola Windows Normal/cero no certifica impresora lista. Se pide cerrar mecanismo/tapa, identificar parpadeo lento/rápido/fijo y FEED una vez. No nuevos trabajos/reset/calibración ciega. Detalle y fuentes en docs/PRINTER_STAR_IF42.md; impresión real sigue fallida, no homologada.
+
+
+STARPOS: FEED pita, rojo rápido confirmado por usuario. Video oficial iF4 142 verifica calibración con pulsación corta del botón superior tras revisar recorrido y cerrar cabezal. Se indican pasos físicos; resultado aún pendiente, sin nuevos trabajos de impresión.
+
+
+STARPOS: cartulina una capa confirmada, cierre listo. Prueba única continua 70x40 con ribbon enviada (trabajo 7), sin calibración ni guardado permanente. Esperando impresión física y estado LED; guía PRINTER_STAR_IF42.md.
+
+
+STARPOS: último ensayo no imprimió, amarillo parpadeante. Destino USB002 STAR POS STAR-iF42 reconfirmado, driver iDPRT provisional no homologado. Video iF4 oficial 143: amarillo lento es pausa, reanudar FEED breve. No nuevos trabajos/reinstalación hasta observar resultado.
+
+
+STARPOS imprimió TEST-002 tras salir de pausa (foto del propietario); transferencia USB/ZPL operativa, calidad débil/irregular y margen izquierdo recortado pendientes. Lanzadas preferencias del controlador instalado para inspección; sin cambios de densidad/velocidad ni otra impresión. QR físico no homologado. Detalle PRINTER_STAR_IF42.md.
+
+
+STARPOS TEST-003 autorizada por listo: una muestra70x40 con ribbon, oscuridad15 absoluta/ajuste0, 50.8mm/s y margen izquierdo aumentado, enviada trabajo8 por RAW; sin cambio cloud ni boleta real. Confirmación física de calidad/QR pendiente. Guía PRINTER_STAR_IF42.md.
+
+
+STARPOS TEST-003 físico: alineación lateral mejorada, QR más definido; transferencia aún irregular/débil. Pendiente identificar ribbon y comprobar montaje/contacto, sin nueva muestra automática ni homologación de lector. Foto/estado descritos en PRINTER_STAR_IF42.md.
+
+
+2026-11-18: enviada una muestra fisica de prueba TEST-004 (trabajo 9), oscuridad 18 frente a 15 y misma velocidad 50.8 mm/s. Resultado fisico pendiente; procedimiento y script privado en docs/PRINTER_STAR_IF42.md. Sin cambios de aplicacion/cloud.
+
+STARPOS TEST-004: foto comparativa confirma mejora visual del QR con D18 frente a D15; texto aun irregular. Pendiente lectura fisica EDA51 en campo de texto y calidad final. No nueva impresion. Detalle en docs/PRINTER_STAR_IF42.md.
+
+2026-11-18 - STARPOS: enviada una muestra TEST-005, D21 frente a D18, misma velocidad 50.8 mm/s y diseno para comparacion. Trabajo 10, resultado fisico pendiente. EDA51 cargando, lectura aun pendiente. Ver docs/PRINTER_STAR_IF42.md.
+
+2026-11-18 - STARPOS: enviada por solicitud una muestra TEST-006, oscuridad explicita 26 / 50.8 mm/s, trabajo 11. Resultado fisico y lectura EDA51 pendientes; detalles en docs/PRINTER_STAR_IF42.md.
+
+STARPOS: fotos D21/D26 muestran texto y marco aun irregulares; propietario informa lectura de QR, sin precisar muestra/consistencia. No homologacion completa. Se detiene escalado de oscuridad; pendiente revisar ribbon/contacto y prueba de fuente mas ancha. Detalles docs/PRINTER_STAR_IF42.md.
+
+2026-11-18 - STARPOS TEST-007 enviado tras revision fisica por propietario: letras mas anchas, texto repetido y tres bloques negros pequenos; D26/50.8 mm/s conservados, trabajo 12. Resultado fisico pendiente. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-007 fisico: tres bloques solidos con huecos, defecto tambien en fuente ancha. No es solo tipografia. Sin mas energia/pruebas automaticas; pendiente comparar consumibles conocidos compatibles y conocer historial de esta combinacion. Ver docs/PRINTER_STAR_IF42.md.
+
+2026-11-18 - Consumibles recomendados provisionalmente para STARPOS: tag liso recubierto para transferencia termica + ribbon flat-head cera/resina APR6, alternativa AWX FH; pedir muestra y confirmar dimensiones/bobinado/espesor con proveedor. Guia docs/PRINTER_STAR_IF42.md. Sin compra ni compatibilidad fisica certificada.
+
+STARPOS TEST-008: una copia diagnostica enviada (trabajo 13) tras cambio no especificado por propietario. D26/50.8mm/s explicitos; pendiente foto y conocer cambio. Detalles docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-009: enviada una copia con QR de prueba, D26/50.8mm/s, trabajo 14. Foto/lectura pendientes. Procedimiento en docs/PRINTER_STAR_IF42.md.
+
+STARPOS: propietario identifica papel al reves como causa de calidad; foto TEST-009 mejora claramente. Pendiente registro vertical: continuo no sigue perforaciones, confirmar barras ahora inferiores y paso medido. No compra de consumibles confirmada necesaria. Detalle docs/PRINTER_STAR_IF42.md.
+
+STARPOS: confirmados marcas inferiores/paso40mm; enviada configuracion ZPL de marca negra (trabajo15, sin imprimir). Pendiente calibracion fisica y foto de TEST-010 aun no enviado. Siguiente script no debe restaurar continuo. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-010: una copia con QR en modo marca negra enviada tras finalizacion de calibracion reportada (trabajo16). Pendiente foto entre perforaciones para verificar alineacion vertical; no declarar calibracion/registro aprobados por cola vacia. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-010: propietario informa impresion cruzando zona de corte; alineacion aun pendiente. Se requiere foto/medida de desfase para determinar offset y verificar registro, sin nuevo envio. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-011: enviada una copia con offset de referencia marca +20mm (^MNM,160), por perforacion central reportada. Trabajo17, resultado fisico/soporte de offset pendientes. No cambio de diseno ni energia. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-011 no alineado segun foto: diseno partido y blanco amplio. Offset20mm no resolvio; pendiente mapa fisico de marcas/perforaciones con regla antes de mas ajustes. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS: recibidas fotos frente/reverso, barras regulares; posible salto de boleta aun sin medir. Retirado offset20mm con ^MNM,0 (trabajo18, sin imprimir). Pendiente medir avance de una pulsacion FEED40/80mm. Guia docs/PRINTER_STAR_IF42.md.
+
+STARPOS: FEED avanza una boleta segun propietario (aproximado). Enviada muestra QR TEST-012 tras FEED con marca negra/offset0, trabajo19; pendiente posicion fisica. Ver docs/PRINTER_STAR_IF42.md.
+
+STARPOS TEST-012 mejor alineado, marco superior aun cruza perforacion. Enviado TEST-013 con LT+4mm y marco mas corto para conservar margen inferior, trabajo20. Foto/consistencia pendientes; ver docs/PRINTER_STAR_IF42.md.
+
+## Configuracion de papel en app (2026-11-18)
+- Propietario confirma TEST-013 bien alineado; falta consistencia de tres copias y nuevo formato real de app.
+- Selector en entradas con permiso de venta:80mm,70x40,70x100, preferencia local validada, controles de material/top/oscuridad. ZPL para STARPOS via QZ; ESC/POS80 conservado. Browser tiene plantillas de largo fijo con limites verificados en prueba de taquilla. PDF digital sin cambios. Guia docs/PRINT_PAPER_SETTINGS.md y mapa AGENTS/OPERATIONS/README.
+- Next/eslint-config-next patch16.4.6 tras advisory critico, audit prod0. Playwright chromium instalado con npx playwright install chromium para version fijada.
+- Verificacion parcial:97 Vitest, lint y tipos pasan; build16.4.6 pasa. Ensayo dirigido taquilla/PDF/acceso/caja con selector persistente y limites de ambos papeles pasa despues de corregir desborde de footer40mm. Regresion completa y build final pendientes en este punto; registrar abajo resultado final.
+- Sin migraciones, cambios de cuentas/cloud ni nueva muestra fisica en esta entrega. QZ app-servidor-dispositivo y papel100 requieren pruebas externas. Scripts RAW privados no forman parte de la app ni se suben.
+
+Verificacion final de esta entrega:97 pruebas Vitest,18 Playwright E2E (55.1s),lint,typecheck y build Next16.4.6 aprobados; npm audit --omit=dev:0 vulnerabilidades. Comprobaciones de navegador no homologan papel100 ni flujo QZ fisico. Publicacion pendiente hasta push/verificacion de proveedor; no afirmar desplegado por build local.

@@ -1,5 +1,9 @@
 # Compra de impresora para entradas de concierto — 2026-10-14
 
+## Revisión de tres opciones — 2026-11-11
+
+Reconfirmadas fichas oficiales BOCA Lemur-C Ticket y Lemur; ficha Zebra actual en https://www.zebra.com/us/en/products/spec-sheets/printers/desktop/zd400-series.html. Selección: Lemur-C Ticket 300 dpi como primera cotización para taquilla, Lemur 300 dpi para volumen/cartulina más gruesa y Zebra ZD421t 300 dpi como alternativa de transferencia con tag stock no adhesivo. Presentación recomendada: soporte compatible preimpreso en color, QR/datos variables negros. Pedir muestra, compatibilidad de corte y soporte/consumibles; no se verificó precio o stock Colombia ni se compró hardware. Integración actual sigue pendiente de adaptación/homologación específica. Esta consulta no cambia código ni configuración cloud.
+
 Solicitud del propietario: entradas físicas bonitas, con papel tipo concierto; no solo recibos de caja. Recomendación provisional: cotizar BOCA Lemur-C en configuración Ticket Printer de 300 dpi para taquilla de volumen moderado, y BOCA Lemur 300 dpi si se requiere mayor volumen o cartulina más gruesa. Alternativa Zebra ZD421 de transferencia térmica (ZD421t), 300 dpi, con soportes no adhesivos compatibles. STIMARE STIMA CLS es otra familia dedicada a conciertos/taquilla, sujeta a cotización/configuración.
 
 La presentación depende del soporte y diseño: tickets/cartulina compatibles preimpresos en color por proveedor/imprenta, con zona blanca para QR y datos variables negros, perforación/talón si se desea. Impresoras térmicas de esta selección no imprimen fotografías a todo color como una impresora CMYK. No comprar cartulina genérica ni decidir solo por gramaje: confirmar espesor, tratamiento térmico o ribbon, marca negra, ancho/largo, alimentación/corte y configuración exacta.

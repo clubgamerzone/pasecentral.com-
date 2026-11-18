@@ -41,7 +41,7 @@ PGlite ejecuta PostgreSQL dentro del proceso y conserva datos en `.local/postgre
 
 | Componente | Versión fijada | Ubicación |
 | --- | --- | --- |
-| Next.js App Router / React | 16.4.0 / 19.3.0 | `src/app/`, `src/components/` |
+| Next.js App Router / React | 16.4.6 / 19.3.0 | `src/app/`, `src/components/` |
 | TypeScript / Tailwind | 6.0.3 / 4.3.3 | `tsconfig.json`, `src/app/globals.css` |
 | Supabase SSR / JS | 0.12.7 / 2.117.3 | `src/lib/auth.ts` |
 | PostgreSQL / PGlite / pg | local Supabase 17 / 0.5.8 / 8.23.1 | `src/lib/db.ts`, `supabase/migrations/` |
@@ -113,9 +113,9 @@ El worker usa bloqueo `SKIP LOCKED`, reintentos con espera creciente, recuperaci
 
 ### Impresión y EDA51
 
-Impresión por navegador disponible: **Imprimir 80 mm**, selecciona papel 80 mm y desactiva encabezados/pies del navegador. Registra solicitud y trabajo enviado; el diálogo no garantiza papel impreso.
+En la pantalla de entradas, **Papel e impresora** permite elegir recibo de 80 mm o boletas de 70 × 40 / 70 × 100 mm. Guarda preferencias por navegador y ofrece ajuste vertical/material. Selecciona el mismo tamaño en el diálogo de impresión y desactiva encabezados/pies. Registra solicitud y trabajo enviado; el diálogo no garantiza papel impreso. Configuración y límites físicos: [docs/PRINT_PAPER_SETTINGS.md](docs/PRINT_PAPER_SETTINGS.md).
 
-Para QZ Tray instala su aplicación y el driver del modelo homologado. Configura `NEXT_PUBLIC_QZ_PRINTER` con el nombre exacto, `QZ_CERTIFICATE_PEM` y `QZ_PRIVATE_KEY_PEM` con certificado/clave de firma del servidor. El adaptador envía ESC/POS con QR nativo; solo firma operaciones de impresión autorizadas y restringe el nombre de impresora. Certificado, licencia, driver, encoding y comandos de corte deben homologarse con el equipo. Nunca publiques la clave privada.
+Para QZ Tray instala su aplicación y el driver del modelo homologado. Configura `NEXT_PUBLIC_QZ_PRINTER` con el nombre exacto, `QZ_CERTIFICATE_PEM` y `QZ_PRIVATE_KEY_PEM` con certificado/clave de firma del servidor. El adaptador envía ESC/POS para recibo de 80 mm o ZPL para STARPOS de 70 mm; solo firma operaciones de impresión autorizadas y restringe el nombre de impresora. Certificado, licencia, driver, encoding y comandos de corte deben homologarse con el equipo. Nunca publiques la clave privada.
 
 EDA51: navegador con sesión del operador, evento correcto, campo QR enfocado, scanner configurado como entrada de teclado y sufijo Enter. No hay autorización offline. Hardware, papel, contraste, margen QR y latencia menor a dos segundos requieren pruebas físicas pendientes. Consulta contingencias en [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
@@ -146,3 +146,4 @@ Vista general y Análisis/reportes permiten comparar eventos/años y consultar f
 ## Cuentas y regalos
 
 Registro con género y edad opcional, Mi perfil con eliminación propia, regalos y transferencias aceptables durante siete días desde Mis entradas. Admin gestiona Organizaciones y fases Online/Taquilla/Ambos; apertura usa hora del día de inicio, edad mínima editable y precios COP con miles. Guía técnica/operativa, migración 008, plantillas Auth españolas y límites: [docs/ACCOUNTS_TICKETS_2026-10-14.md](docs/ACCOUNTS_TICKETS_2026-10-14.md).
+

@@ -1,6 +1,12 @@
 import type { Row } from "./db";
+import {
+  DEFAULT_PRINT_SETTINGS,
+  parsePrintSettings,
+  type PrintSettings,
+} from "./print-settings";
+import { ticketZpl } from "./ticket-zpl";
 export interface PrinterAdapter {
-  print(tickets: Row[], event: Row): Promise<void>;
+  print(tickets: Row[], event: Row, settings?: PrintSettings): Promise<void>;
 }
 export class BrowserPrintAdapter implements PrinterAdapter {
   async print() {
@@ -8,7 +14,30 @@ export class BrowserPrintAdapter implements PrinterAdapter {
   }
 }
 export class QZTrayAdapter implements PrinterAdapter {
-  async print(tickets: Row[], event: Row) {
+  async print(tickets: Row[], event: Row, input = DEFAULT_PRINT_SETTINGS) {
+    const settings = parsePrintSettings(input);
+    // Prepare the whole order before submitting anything to the printer.
+    const labels =
+      settings.paper === "receipt80"
+        ? null
+        : tickets.map((t) =>
+            ticketZpl(
+              {
+                credential: t.credential,
+                visible_number: t.visible_number,
+                security_serial: t.security_serial,
+                type_name: t.type_name,
+                status: t.status,
+              },
+              {
+                title: event.title,
+                starts_at: event.starts_at,
+                venue_name: event.venue_name,
+                address: event.address,
+              },
+              settings,
+            ),
+          );
     const qz = (await import("qz-tray")).default;
     qz.security.setCertificatePromise(async (resolve, reject) => {
       try {
@@ -38,19 +67,20 @@ export class QZTrayAdapter implements PrinterAdapter {
     const printer = process.env.NEXT_PUBLIC_QZ_PRINTER;
     if (!printer) throw new Error("Falta impresora QZ configurada");
     const config = qz.configs.create(printer);
-    for (const t of tickets) {
+    for (const [index, t] of tickets.entries()) {
       const qr = t.credential;
       const n = qr.length + 3;
       const text = `PASE CENTRAL\n${event.title}\n${t.type_name}\n${t.visible_number}\nSerial: ${t.security_serial}\n`;
       const raw =
+        labels?.[index] ??
         "\x1b@\x1ba\x01" +
-        text +
-        "\n\x1d(k\x04\x001A2\x00" +
-        "\x1d(k\x03\x001C\x06" +
-        "\x1d(k\x03\x001E0" +
-        `\x1d(k${String.fromCharCode(n % 256)}${String.fromCharCode(Math.floor(n / 256))}1P0${qr}` +
-        "\x1d(k\x03\x001Q0" +
-        "\nUn ingreso por entrada\n\n\n\x1dV\x00";
+          text +
+          "\n\x1d(k\x04\x001A2\x00" +
+          "\x1d(k\x03\x001C\x06" +
+          "\x1d(k\x03\x001E0" +
+          `\x1d(k${String.fromCharCode(n % 256)}${String.fromCharCode(Math.floor(n / 256))}1P0${qr}` +
+          "\x1d(k\x03\x001Q0" +
+          "\nUn ingreso por entrada\n\n\n\x1dV\x00";
       const bytes = new TextEncoder().encode(raw);
       let binary = "";
       for (const b of bytes) binary += String.fromCharCode(b);
