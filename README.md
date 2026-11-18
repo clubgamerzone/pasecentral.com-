@@ -146,4 +146,3 @@ Vista general y Análisis/reportes permiten comparar eventos/años y consultar f
 ## Cuentas y regalos
 
 Registro con género y edad opcional, Mi perfil con eliminación propia, regalos y transferencias aceptables durante siete días desde Mis entradas. Admin gestiona Organizaciones y fases Online/Taquilla/Ambos; apertura usa hora del día de inicio, edad mínima editable y precios COP con miles. Guía técnica/operativa, migración 008, plantillas Auth españolas y límites: [docs/ACCOUNTS_TICKETS_2026-10-14.md](docs/ACCOUNTS_TICKETS_2026-10-14.md).
-

@@ -303,3 +303,5 @@ STARPOS TEST-012 mejor alineado, marco superior aun cruza perforacion. Enviado T
 - Sin migraciones, cambios de cuentas/cloud ni nueva muestra fisica en esta entrega. QZ app-servidor-dispositivo y papel100 requieren pruebas externas. Scripts RAW privados no forman parte de la app ni se suben.
 
 Verificacion final de esta entrega:97 pruebas Vitest,18 Playwright E2E (55.1s),lint,typecheck y build Next16.4.6 aprobados; npm audit --omit=dev:0 vulnerabilidades. Comprobaciones de navegador no homologan papel100 ni flujo QZ fisico. Publicacion pendiente hasta push/verificacion de proveedor; no afirmar desplegado por build local.
+
+Commit de implementacion/verificaciones: feb5bd9 (Add ticket paper presets and STARPOS ZPL printing). El commit incluye documentacion de hardware y patch de seguridad. Proximo paso: sincronizar main y verificar despliegue; ensayo fisico QZ y papel grande siguen pendientes.
