@@ -47,6 +47,7 @@ export async function deliver(db: DB, adapter?: EmailAdapter) {
                 : null,
               job.order_id,
               job.recipient_user_id ? undefined : decrypt(o.share_encrypted),
+              !!job.recipient_user_id,
             ),
             link,
           );

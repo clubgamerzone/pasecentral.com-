@@ -23,7 +23,7 @@ export async function deliverAccountNotifications(db: DB) {
         from: process.env.EMAIL_FROM,
         to: [job.recipient_email],
         subject: job.subject,
-        text: `${job.message}\n\nAbre ${appUrl()}/account/tickets\nSi necesitas crear una cuenta: ${appUrl()}/login\nPase Central`,
+        text: `${job.message}\n\nAbre ${appUrl()}/account/tickets\nSi necesitas crear una cuenta: ${appUrl()}/login?register=1\nPase Central`,
       };
       if (demoMode()) {
         mkdirSync(".local/outbox", { recursive: true });

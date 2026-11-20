@@ -24,7 +24,7 @@ const schema = z.object({
     "recovery",
   ]),
   id: z.string().uuid().optional(),
-  email: z.email().optional(),
+  email: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   password: z.string().min(10).max(128).optional(),
   name: z.string().min(1).max(150).optional(),
   gender: gender.optional(),
@@ -129,7 +129,10 @@ export async function POST(req: Request) {
             email: b.email,
             password: b.password,
           });
-    if (res.error)
+    const existingSignup =
+      b.action === "signup" &&
+      ["user_already_exists", "email_exists"].includes(res.error?.code ?? "");
+    if (res.error && !existingSignup)
       fail(
         "No se pudo iniciar sesión o registrar. Verifica tus datos y tu correo.",
         400,
@@ -149,7 +152,7 @@ export async function POST(req: Request) {
       ...(resume ? { next: "/invite" } : {}),
       message:
         b.action === "signup"
-          ? "Revisa tu correo para confirmar tu cuenta."
+          ? "Si este correo es nuevo, recibirás un enlace para confirmar tu cuenta. Si ya tienes una cuenta, inicia sesión o recupera tu contraseña; registrarte otra vez no crea una cuenta adicional."
           : "Sesión iniciada",
     });
   } catch (e) {

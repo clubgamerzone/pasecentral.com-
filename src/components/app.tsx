@@ -640,6 +640,7 @@ function Login() {
   const [signup, setSignup] = useState(false),
     [pending, setPending] = useState(false),
     [invited, setInvited] = useState(false);
+  const [signupResult, setSignupResult] = useState("");
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const timer = setTimeout(() => {
@@ -662,13 +663,10 @@ function Login() {
       const b = await res.json();
       if (!res.ok) throw new Error(b.error);
       await refresh();
-      if (body.action === "signup")
-        notify(
-          invited
-            ? "Cuenta creada. Confirma tu correo y continúa para activar los permisos de tu invitación."
-            : b.message,
-        );
-      else if (
+      if (body.action === "signup") {
+        setSignupResult(b.message);
+        notify(b.message);
+      } else if (
         b.next === "/invite" ||
         invited ||
         sessionStorage.getItem("pc-invitation")
@@ -694,11 +692,13 @@ function Login() {
     <section className="panel login-panel">
       <div className="eyebrow">Bienvenido a Pase Central</div>
       <h1>
-        {signup
-          ? invited
-            ? "Crea tu cuenta para unirte al equipo"
-            : "Crea tu cuenta"
-          : "Todo listo para entrar"}
+        {signupResult
+          ? "Continúa con tu cuenta"
+          : signup
+            ? invited
+              ? "Crea tu cuenta para unirte al equipo"
+              : "Crea tu cuenta"
+            : "Todo listo para entrar"}
       </h1>
       {invited && (
         <p className="notice">
@@ -745,6 +745,42 @@ function Login() {
             ))}
           </div>
         </>
+      ) : signupResult ? (
+        <section
+          aria-label="Cómo continuar con tu cuenta"
+          className="section-stack"
+          style={{ marginTop: 24 }}
+        >
+          <p className="notice" role="status">
+            {signupResult}
+          </p>
+          <p className="helper">
+            Si ya usaste este correo en Pase Central, entra con tu contraseña
+            habitual. Un nuevo intento de registro no cambia tu contraseña ni
+            tus entradas.
+          </p>
+          <button
+            className="btn primary"
+            onClick={() => {
+              setSignupResult("");
+              setSignup(false);
+            }}
+          >
+            Iniciar sesión
+          </button>
+          <Link className="btn" href="/forgot-password">
+            Recuperar contraseña
+          </Link>
+          <button
+            className="link"
+            onClick={() => {
+              setSignupResult("");
+              setSignup(true);
+            }}
+          >
+            Usar otro correo
+          </button>
+        </section>
       ) : (
         <form
           onSubmit={(e) => {

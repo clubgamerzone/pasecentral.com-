@@ -1425,14 +1425,18 @@ export async function ticketDocument(
   a: Actor | null,
   orderId: string,
   share?: string,
+  ownerOnly = false,
 ) {
   const { expireTransfers } = await import("./transfers");
   await expireTransfers(db);
   return db.transaction(async (tx) => {
     await tx.query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ");
     const o = await one(tx, "SELECT * FROM orders WHERE id=$1", [orderId]);
-    const shared = !!(share && o.share_hash && hash(share) === o.share_hash);
-    const staff = a ? await can(tx, a, o.event_id, "sell") : false;
+    const shared =
+      !ownerOnly && !!(share && o.share_hash && hash(share) === o.share_hash);
+    // Delivery to a ticket owner must not inherit their separate staff privileges.
+    const staff =
+      a && !ownerOnly ? await can(tx, a, o.event_id, "sell") : false;
     const owner =
       a &&
       (

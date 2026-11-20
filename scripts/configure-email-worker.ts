@@ -1,6 +1,7 @@
 import { database, type Tx } from "../src/lib/db";
 import { demoMode, required } from "../src/lib/config";
 import { execFileSync } from "node:child_process";
+import { pendingDeliverySql } from "../src/lib/delivery-scheduler";
 
 async function verifyApiBoundary() {
   const endpoint = `${required("NEXT_PUBLIC_SUPABASE_URL")}/rest/v1/http_request_queue?select=id&limit=0`;
@@ -110,17 +111,7 @@ async function main() {
       url := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='pasecentral_worker_url'),
       headers := jsonb_build_object('Content-Type','application/json','Authorization','Bearer ' || (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name='pasecentral_worker_token')),
       body := '{}'::jsonb, timeout_milliseconds := 60000
-    ) WHERE EXISTS (
-      SELECT 1 FROM public.delivery_jobs
-      WHERE (status IN ('pending','failed') AND next_attempt_at<=now() AND attempts<6)
-         OR (status='processing' AND locked_at<now()-interval '10 minutes')
-    ) OR EXISTS (
-      SELECT 1 FROM public.team_invitations
-      WHERE status='pending' AND expires_at>now() AND (
-        (email_status IN ('pending','failed') AND next_attempt_at<=now() AND email_attempts<6)
-        OR (email_status='processing' AND locked_at<now()-interval '10 minutes')
-      )
-    )`;
+    ) WHERE ${pendingDeliverySql}`;
     await tx.query("SELECT cron.schedule($1,$2,$3)", [
       "pasecentral-delivery",
       "* * * * *",

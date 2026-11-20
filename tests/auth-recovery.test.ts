@@ -37,6 +37,56 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("recuperación de cuenta", () => {
+  it("no afirma crear una cuenta ni revela si el correo ya existe", async () => {
+    const body = {
+      action: "signup",
+      email: "  TEST@example.test  ",
+      password: "fictional-password-123",
+      name: "Ficticio",
+      gender: "prefer_not_to_say",
+      terms_accepted: true,
+    };
+    let expected: unknown;
+    for (const result of [
+      {
+        error: null,
+        data: { user: { identities: [{ id: "new" }] }, session: null },
+      },
+      { error: null, data: { user: { identities: [] }, session: null } },
+      { error: { code: "user_already_exists" }, data: { user: null } },
+      { error: { code: "email_exists" }, data: { user: null } },
+    ]) {
+      auth.signUp.mockResolvedValue(result);
+      const response = await POST(request(body));
+      expect(response.status).toBe(200);
+      const json = await response.json();
+      expected ??= json;
+      expect(json).toEqual(expected);
+      expect(json.message).toContain("Si ya tienes una cuenta");
+      expect(json).not.toHaveProperty("next");
+      expect(auth.signUp.mock.lastCall?.[0].email).toBe("test@example.test");
+    }
+    expect(auth.updateUser).not.toHaveBeenCalled();
+    expect(auth.signInWithPassword).not.toHaveBeenCalled();
+    expect(
+      databaseQuery.mock.calls.every(
+        ([sql]) =>
+          !/INSERT INTO (?:public\.)?(?:profiles|platform_admins|organization_members)/i.test(
+            String(sql),
+          ),
+      ),
+    ).toBe(true);
+    auth.signUp.mockResolvedValue({
+      error: { code: "over_email_send_rate_limit" },
+    });
+    expect((await POST(request(body))).status).toBe(400);
+    auth.signInWithPassword.mockResolvedValue({
+      error: { code: "user_already_exists" },
+    });
+    expect((await POST(request({ ...body, action: "login" }))).status).toBe(
+      400,
+    );
+  });
   it("confirmación en otra pestaña retoma invitación por correo verificado sin conceder rol automáticamente", async () => {
     auth.verifyOtp.mockResolvedValue({
       error: null,
