@@ -1,9 +1,11 @@
 "use client";
+import Link from "next/link";
 import {
   createContext,
   useContext,
   useEffect,
   useState,
+  useRef,
   useCallback,
   useId,
   cloneElement,
@@ -27,6 +29,7 @@ import {
   MapPin,
   ArrowRight,
   ShieldCheck,
+  Search,
 } from "lucide-react";
 import type { state } from "@/lib/state";
 import type { Row } from "@/lib/db";
@@ -47,6 +50,7 @@ import { AnalyticsPanel, initialAnalyticsFilters } from "./analytics";
 import { MoneyInput } from "./enhanced-fields";
 import { genders, ageBands } from "@/lib/demographics";
 import { TicketWallet, Organizations } from "./ticket-wallet";
+import { Preprints } from "./preprints";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -208,12 +212,34 @@ export function App() {
     [toast, setToast] = useState<{ message: string; error: boolean } | null>(
       null,
     );
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/state", { cache: "no-store" });
+  const refreshVersion = useRef(0);
+  const previousPath = useRef(path);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const version = ++refreshVersion.current;
+    const res = await fetch("/api/state", { cache: "no-store", signal });
     const body = await res.json();
     if (!res.ok) throw new Error(body.error);
-    setData(body);
+    if (version === refreshVersion.current && !signal?.aborted) setData(body);
   }, []);
+  useEffect(() => {
+    if (previousPath.current === path) return;
+    previousPath.current = path;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void refresh(controller.signal).catch(() => {
+        if (!controller.signal.aborted)
+          setToast({
+            message:
+              "No se pudieron actualizar los datos. Reintenta antes de continuar.",
+            error: true,
+          });
+      });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [path, refresh]);
   useEffect(() => {
     let active = true;
     const timer = setTimeout(() => {
@@ -289,7 +315,18 @@ export function App() {
           result.error +
             (result.fields ? ` · ${result.fields.join(", ")}` : ""),
         );
-      await refresh();
+      // Printing only changes its audit trail; the ticket and dashboard data stay current.
+      if (
+        ![
+          "print_request",
+          "print_batch_request",
+          "print_result",
+          "preprint_lookup",
+          "preprint_print_request",
+          "preprint_print_result",
+        ].includes(body.action)
+      )
+        await refresh();
       if (success) notify(success);
       return result;
     } catch (e) {
@@ -347,6 +384,11 @@ export function App() {
     ...(data.permissions.sell.length
       ? [
           { href: "/box-office", label: "Taquilla", icon: ShoppingBag },
+          {
+            href: "/box-office/preprints",
+            label: "Boletas preimpresas",
+            icon: Ticket,
+          },
           { href: "/box-office/cash-session", label: "Caja", icon: Wallet },
         ]
       : []),
@@ -372,16 +414,17 @@ export function App() {
         orderId={path.endsWith("/result") ? null : path.split("/")[2]}
       />
     );
-  else if (path.startsWith("/events/"))
+  else if (path.startsWith("/events/") || path.startsWith("/eventos/"))
     screen = <EventPurchase slug={path.split("/")[2]} />;
-  else if (path === "/events" || path === "/") screen = <Catalog />;
+  else if (path === "/events" || path === "/eventos" || path === "/")
+    screen = <Catalog />;
   else if (!data.actor)
     screen = (
       <div className="panel">
         <Empty>Inicia sesión para acceder a esta sección.</Empty>
-        <a href="/login" className="btn primary">
+        <Link href="/login" className="btn primary">
           Iniciar sesión
-        </a>
+        </Link>
       </div>
     );
   else if (path === "/invite") screen = <AcceptInvitation />;
@@ -405,6 +448,13 @@ export function App() {
     screen = <Organizations />;
   else if (path === "/box-office" && data.permissions.sell.length)
     screen = <BoxOffice />;
+  else if (path === "/box-office/preprints" && data.permissions.sell.length)
+    screen = <Preprints />;
+  else if (
+    path.startsWith("/box-office/preprints/") &&
+    data.permissions.sell.length
+  )
+    screen = <Tickets orderId={path.split("/")[3]} preprinted />;
   else if (path === "/box-office/cash-session" && data.permissions.sell.length)
     screen = <Cash />;
   else if (path === "/access" && data.permissions.access.length)
@@ -423,20 +473,20 @@ export function App() {
     >
       <div className="shell">
         <aside className="sidebar">
-          <a href="/events" className="brand">
+          <Link href="/events" className="brand">
             <span className="brand-icon">
               <Ticket size={22} />
             </span>
             <div>
               pase central<small>VIVE EL MOMENTO</small>
             </div>
-          </a>
+          </Link>
           {operational.length > 0 && (
             <>
               <div className="nav-label">Tu espacio de trabajo</div>
               <nav className="nav">
                 {operational.map((m) => (
-                  <a
+                  <Link
                     key={m.href}
                     href={m.href}
                     className={
@@ -449,7 +499,7 @@ export function App() {
                   >
                     <m.icon />
                     {m.label}
-                  </a>
+                  </Link>
                 ))}
               </nav>
             </>
@@ -457,28 +507,31 @@ export function App() {
           <div className="nav-label">Descubre y disfruta</div>
           {data.permissions.admin && (
             <nav className="nav">
-              <a href="/admin/organizations">
+              <Link
+                href="/admin/organizations"
+                className={path === "/admin/organizations" ? "active" : ""}
+              >
                 <Users />
                 Organizaciones
-              </a>
+              </Link>
             </nav>
           )}
           <nav className="nav">
             {menu.map((m) => (
-              <a
+              <Link
                 key={m.href}
                 href={m.href}
                 className={path === m.href ? "active" : ""}
               >
                 <m.icon />
                 {m.label}
-              </a>
+              </Link>
             ))}
             {!data.actor && (
-              <a href="/login" className={path === "/login" ? "active" : ""}>
+              <Link href="/login" className={path === "/login" ? "active" : ""}>
                 <ShieldCheck />
                 Iniciar sesión
-              </a>
+              </Link>
             )}
           </nav>
           <div className="nav-foot">
@@ -541,7 +594,10 @@ export function App() {
               />
               <b>
                 {[...operational, ...menu].find((m) => m.href === path)
-                  ?.label ?? "Pase Central"}
+                  ?.label ??
+                  (path === "/admin/organizations"
+                    ? "Organizaciones"
+                    : "Pase Central")}
               </b>
             </span>
             <div className="top-right">
@@ -560,7 +616,9 @@ export function App() {
               </div>
             </div>
           </header>
-          <main className="content">{screen}</main>
+          <main className="content" key={path}>
+            {screen}
+          </main>
         </div>
       </div>
       {toast && (
@@ -795,9 +853,9 @@ function Login() {
                 : "Crear una cuenta de comprador"}
           </button>
           {!signup && (
-            <a className="link" href="/forgot-password">
+            <Link className="link" href="/forgot-password">
               Olvidé mi contraseña
-            </a>
+            </Link>
           )}
         </form>
       )}
@@ -815,7 +873,9 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
       e.title.toLowerCase().includes(query.toLowerCase()),
   );
   return (
-    <>
+    <div
+      className={`catalog-page ${admin ? "catalog-admin" : "catalog-public"}`}
+    >
       <Heading
         title={
           admin
@@ -829,10 +889,10 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
         }
         action={
           admin && (
-            <a className="btn primary" href="/admin/events/new">
+            <Link className="btn primary" href="/admin/events/new">
               <Plus />
               Crear evento
-            </a>
+            </Link>
           )
         }
       />
@@ -842,16 +902,20 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
           evento real siguen pendientes.
         </div>
       )}
-      <div className="filterbar">
-        <input
-          className="search"
-          aria-label="Buscar eventos"
-          placeholder="Buscar un evento…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+      <div className="filterbar catalog-filter">
+        <div className="catalog-search">
+          <Search aria-hidden="true" />
+          <input
+            className="search"
+            aria-label="Buscar eventos"
+            placeholder="Buscar un evento…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </div>
         <p className="compact">
-          {events.length} eventos {admin ? "en tu organización" : "disponibles"}
+          {events.length} {events.length === 1 ? "evento" : "eventos"}{" "}
+          {admin ? "en tu organización" : "disponibles"}
         </p>
       </div>
       <div className="event-grid">
@@ -865,12 +929,15 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
                 ["web", "both"].includes(p.channel) &&
                 p.active &&
                 new Date(p.starts_at) <= new Date() &&
-                new Date(p.ends_at) > new Date(),
+                (!(p.ends_at ?? p.effective_ends_at) ||
+                  new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
             )
             .map((p) => p.price_cop);
           return (
             <article className="event-card" key={e.id}>
-              <a href={admin ? `/admin/events/${e.id}` : `/events/${e.slug}`}>
+              <Link
+                href={admin ? `/admin/events/${e.id}` : `/events/${e.slug}`}
+              >
                 {e.cover_url ? (
                   <img
                     className="event-card-image"
@@ -885,7 +952,7 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
                     </div>
                   </div>
                 )}
-              </a>
+              </Link>
               <div className="card-body">
                 <div
                   className="buttons"
@@ -905,7 +972,9 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
                 </div>
                 <div className="card-meta">
                   <Users />
-                  {e.available} lugares disponibles
+                  {e.available === null
+                    ? "Sin límite de aforo total"
+                    : `${e.available} lugares disponibles`}
                 </div>
                 <div className="card-footer">
                   <div>
@@ -916,13 +985,13 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
                       {prices.length ? money(Math.min(...prices)) : "—"}
                     </strong>
                   </div>
-                  <a
+                  <Link
                     className="btn primary"
                     href={admin ? `/admin/events/${e.id}` : `/events/${e.slug}`}
                   >
                     {admin ? "Administrar" : "Ver entradas"}
                     <ArrowUpRight />
-                  </a>
+                  </Link>
                 </div>
               </div>
             </article>
@@ -937,7 +1006,7 @@ export function Catalog({ admin = false }: { admin?: boolean }) {
             : "Vuelve pronto para conocer los próximos planes."}
         </Empty>
       )}
-    </>
+    </div>
   );
 }
 export function Dashboard() {
@@ -956,10 +1025,10 @@ export function Dashboard() {
         title="Tus eventos, de un vistazo"
         subtitle="Ventas, público y resultados de tus eventos."
         action={
-          <a className="btn primary" href="/admin/events/new">
+          <Link className="btn primary" href="/admin/events/new">
             <Plus />
             Crear evento
-          </a>
+          </Link>
         }
       />
       {failedEmails > 0 && (
@@ -972,7 +1041,7 @@ export function Dashboard() {
       <section className="panel" style={{ marginTop: 22 }}>
         <div className="panel-head">
           <h2>Últimas órdenes de tus eventos</h2>
-          <a href="/admin/events">Administrar eventos</a>
+          <Link href="/admin/events">Administrar eventos</Link>
         </div>
         <p className="helper">
           Lista reciente de todos tus eventos administrados, independiente de
@@ -1022,7 +1091,7 @@ export function OrderTable({ orders }: { orders: Row[] }) {
               </td>
               <td>{day(o.created_at)}</td>
               <td>
-                <a
+                <Link
                   className="btn small"
                   href={
                     ["confirmed", "partially_refunded", "refunded"].includes(
@@ -1033,7 +1102,7 @@ export function OrderTable({ orders }: { orders: Row[] }) {
                   }
                 >
                   <ArrowUpRight />
-                </a>
+                </Link>
               </td>
             </tr>
           ))}

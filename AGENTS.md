@@ -774,3 +774,42 @@ El software funciona con PostgreSQL embebido persistente en desarrollo. La demo 
 - Ampliación explícita del propietario 2026-10-14 (prevalece sobre exclusiones originales): organizaciones administrables, registro/perfil con género y edad opcional/condiciones, eliminar cuenta propia, regalar/transferir entradas con aceptación y retorno a 7 días; QR renovados y permisos/RLS revocados. Apertura horaria en día de inicio, cierre al día siguiente permitido, edad mínima editable 18 por defecto, canales Ambos y edición de fase/COP formateado. Correo Auth en español y callback al perfil, menú contextual desactivado sin prometer impedir inspección. Migración 008 y guía: docs/ACCOUNTS_TICKETS_2026-10-14.md.
 
 - Papel seleccionable en entradas (2026-11-18): src/components/print-options.tsx, src/lib/print-settings.ts y ticket-zpl.ts; recibo80 ESC/POS, STARPOS70x40/70x100 ZPL y plantillas navegador, ajustes por navegador. Guia docs/PRINT_PAPER_SETTINGS.md e historial fisico docs/PRINTER_STAR_IF42.md. TEST-013 alineado segun propietario; formato grande y flujo QZ completo requieren ensayo fisico.
+
+- Aforo/horarios opcionales (2026-11-19): EventCapacity/EventSchedule en enhanced-fields.tsx, migración010, validación/stock/acceso/reportes con NULL. Aforo ilimitado conserva cupos de localidad; apertura igual a inicio, fin/cierre opcionales con campos ocultos. Guía y pruebas: docs/EVENT_OPTIONS.md. Código solo local; migración aplicada a Supabase staging compartido.
+
+- Enlace del evento, alias /eventos, miniaturas al seleccionar archivos y localidades ilimitadas bajo evento ilimitado (2026-11-19): operations.tsx, app.tsx, EventDetails/EditTicketType, TicketCapacity, service/validation y migracion011. Guia docs/EVENT_OPTIONS.md; codigo solo local, SQL staging aplicado con respaldo.
+
+- Organización visual global (2026-11-19): estilos compartidos de formularios/tablas/acciones, horarios agrupados y edición modal de localidad. Mapa y verificación: docs/UI_LAYOUT.md.
+
+- Fases de precio hasta el final del evento (2026-11-19): PhaseEnd en enhanced-fields.tsx, alta/edición de fase, state/service y migración012. Interruptor oculta final manual; final dinámico o cierre manual si evento sin fin. Guía docs/EVENT_OPTIONS.md. Código local; SQL staging aplicado con respaldo sin cambiar fases existentes.
+
+- Apertura de caja desde Taquilla (2026-11-19): botón Abrir caja en Cobro y emisión, diálogo nativo cash-opening.tsx con fondo inicial y confirmación; conserva venta en preparación y reutiliza cash_open. Guía docs/OPERATIONS.md. Solo local.
+
+- Segunda revisión UI global (2026-11-19): organizaciones en ticket-wallet.tsx, catálogo/búsqueda/ruta activa en app.tsx, paleta de botones y distribución compartida en globals.css; 12 pantallas con capturas escritorio/móvil. Guía docs/UI_LAYOUT.md. Solo local.
+
+- Administradores actuales por organización (2026-11-19): nombres y correos en tarjetas /admin/organizations, Organizations en ticket-wallet.tsx; solo membresías actuales, sin designar principal ni cambiar permisos. Guía docs/UI_LAYOUT.md.
+
+- Navegación/performance (2026-11-19): App persistente en src/app/(platform)/layout.tsx y catch-all del grupo, next/link, actualización de estado en segundo plano y consultas state por lotes. URLs intactas. Diagnóstico, tiempos medidos, pruebas y límites: docs/NAVIGATION_PERFORMANCE.md. Solo local, sin migración.
+
+- Boleta doble en revisión (2026-11-19): propuesta docs/design/boleta-doble-v1.html/png, dos tramos70x40 por entrada con perforación intermedia, mismo QR y copia comprador/control. Alcance e integración pendiente: docs/design/BOLETA_DOBLE.md. Aún no modifica plantilla activa ni imprime.
+- Corrección boleta doble (2026-11-19): propuesta02 vigente docs/design/boleta-doble-v2.html/png; QR solo en talón superior de acceso, recuerdo con datos del evento abajo sin QR. Misma entrada y consecutivo/serial en ambas partes; aún en revisión visual, sin imprimir ni modificar app.
+- Boleta doble propuesta03 (2026-11-19): logo de evento junto al QR superior, recuerdo abajo; artefactos docs/design/boleta-doble-v3.html/png y logo Retrofest B/N. Campo Logo para boletas administrable por gestor de evento queda pendiente de integración. Guía docs/design/BOLETA_DOBLE.md.
+- Boleta doble propuesta04 (2026-11-19): QR/equipos de sonido del afiche arriba, logo/datos en recuerdo abajo y mensaje ¡A LA CALLE CON TODO!; sin Retener al ingresar. Artefactos docs/design/boleta-doble-v4.html/png. Diseño aún en revisión, sin impresión o integración activa.
+- Boleta doble propuesta05 (2026-11-19): talón superior con QR, localidad/fase, precio grande y ubicación para contar por valor; logo/equipos en recuerdo inferior. docs/design/boleta-doble-v5.html/png; precio histórico de venta al implementar. Solo propuesta visual, sin imprimir.
+- Boleta doble propuesta06 (2026-11-19): sin etiqueta Recuerdo del comprador, composición superpuesta logo/equipos abajo, QR/precio arriba. Artefactos docs/design/boleta-doble-v6.html/png y retrofest-composicion-bw-v1.png; continúa revisión visual sin imprimir.
+
+- Boleta doble integrada (2026-11-19): render común ticket-layout.ts, PDF y API tickets, PaperTickets en pantalla/browser, ZPL GFA doble y raster ESC/POS; default70x40 dos tramos, precio histórico. Arte/frase administrables en TicketArtEditor y API /api/events/[eventId]/ticket-art, migración013 privada. Guía docs/TICKET_DOUBLE_LAYOUT.md. Arte Retrofest aprobado configurado en su evento; código solo local, sin imprimir.
+
+- Confirmación de impresión corregida (2026-11-19): navegador no marca submitted al regresar de window.print, pide confirmar papel o No se imprimió / cancelé; QZ mantiene transporte separado de resultado físico. Tickets en buyer.tsx, guía docs/TICKET_DOUBLE_LAYOUT.md. Sin cambios de schema o impresora.
+
+- Apertura de impresión optimizada (2026-11-19): registro atómico print_batch_request en service.ts/validation.ts, una solicitud desde buyer.tsx y sin refresh global en app.tsx para comandos de impresión. Auditoría y permisos conservados; guía TICKET_DOUBLE_LAYOUT.md.
+
+- Diagnóstico de corte/perforación desde Chrome (2026-11-19): guía PRINTER_STAR_IF42.md; preferencias del usuario70x40conSensor de marcas y origen0, CSS aplica desplazamiento. PrintOptions advierte configuración independiente Windows/QZ; E2E verifica paginación PDF de Chromium, alineación física nueva pendiente.
+
+- Perfil físico TEST-019 aprobado por propietario (2026-11-19): doble70x40, oscuridad26/50.8mm/s/marcaoffset0/+4mm. Defaultsrc/lib/print-settings.ts y preferenciasv3 que actualizan16antiguo del papelpequeño conservando demás ajustes. Guías PRINT_PAPER_SETTINGS.md/PRINTER_STAR_IF42.md; QZ/Chrome aún requieren prueba propia.
+
+- Seleccionar boletas para impresión y consecutivo destacado (2026-11-20): buyer.tsx/print-options.tsx, helper ticket-number.ts, encabezado ticket-layout.ts y secuencia existente devuelta en ticketDocument. Guía docs/TICKET_SELECTION.md, pruebas y límites físicos; sin nuevo contador o migración.
+
+- Boletas preimpresas activadas al vender (2026-11-20): /box-office/preprints, src/components/preprints.tsx y src/lib/preprints.ts, API /api/preprints y migración014. Lote reserva cupos/consecutivos sin venta, precio congelado, impresión privada, asignación y bloqueo; activación con pago/caja mantiene QR y acceso consume una sola vez. SQL/RLS/idempotencia y guía docs/PREPRINTED_TICKETS.md. Código local; migración staging respaldada sin alterar filas existentes o crear fixtures.
+
+- Desactivar/eliminar preimpresas (2026-11-20): src/components/preprint-actions.tsx, controles en documento buyer.tsx/PaperTickets e inventario preprints.tsx. Comando preprint_delete y migración015: elimina solo sin venta, preserva impresión/auditoría y nunca recicla números; solicitudes eliminadas no recrean lotes. Guía docs/PREPRINTED_TICKETS.md. Schema staging respaldado, sin borrar/desactivar lotes existentes; código local.

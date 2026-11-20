@@ -1,5 +1,19 @@
 # Limpieza autorizada de ensayos (2026-10-13)
 
+## Nueva limpieza de ambos entornos (2026-11-18)
+
+El propietario pidió retirar los eventos de prueba y confirmó explícitamente ambos destinos: PostgreSQL local y Supabase staging compartido con la demo publicada. Inventario exacto revisado: dos eventos locales, tres conectados. Los eventos conectados no llevaban sufijo DEMO y tenían una transferencia; por eso **no se modificaron ni eludieron las restricciones de la herramienta genérica** descrita abajo. Se creó una herramienta puntual privada `.local/clear-authorized-events.ts`, con UUID exactos revisados, guardas staging/sandbox, bloqueos transaccionales y respaldo cifrado verificado previo a borrar en cada destino.
+
+Se eliminaron dos eventos locales con sus localidades/fases/asignaciones, preservando cinco perfiles y permisos generales. En Supabase se retiraron tres eventos, seis órdenes, once entradas, seis pagos de ensayo, dos cajas y sus relaciones, incluida una transferencia y su ítem; no se conservaron entradas o ventas huérfanas. Las asignaciones de personal por evento se retiran con el evento; deben configurarse nuevamente en los eventos nuevos. No se amplió ningún permiso.
+
+Se compararon sin cambios perfiles, administradores, membresías, organizaciones, invitaciones y notificaciones de cuenta. En Supabase permanecieron tres cuentas Auth, tres perfiles y tres invitaciones, incluida una pendiente global. Auditoría previa y deduplicación de webhooks se conservaron; cada destino añadió un registro agregado de limpieza. No se enviaron notificaciones ni se hicieron operaciones con dinero real.
+
+Respaldo privado: `.local/backups/event-cleanup-2026-11-19T03-17-31.839Z/local.enc` y `cloud.enc` (nombre UTC; acción del 18 de noviembre en Colombia). Contiene tablas públicas completas y, para cloud, identificadores Auth y referencias de objetos Storage. Cifrado con la clave existente de tickets del archivo privado; verificado mediante descifrado idéntico antes de borrado. No se probó restauración completa. No publicar ni mover la clave a documentación.
+
+Los tres objetos Storage (dos avatares y una imagen del evento) permanecieron intactos: se retiró la referencia de galería del evento eliminado, no el archivo binario; esto facilita recuperación y no muestra de nuevo el evento. No se borró metadata Storage por SQL. Tampoco se eliminaron carpetas e2e históricas o registros externos de Wompi/Resend. La herramienta puntual no es una ruta pública ni un paso de arranque.
+
+Resultado verificado en transacciones: cero eventos en cada base; API del servidor local conectado confirma cero eventos públicos. Ejecución de red local y puertos: `docs/LOCAL_NETWORK.md`. Sin push ni despliegue durante esta tarea.
+
 El propietario pidió retirar todos los datos de prueba para crear sus propios eventos, conservando cuentas e invitaciones. El inventario conectado contenía cuatro eventos marcados DEMO, ocho órdenes, siete entradas, dos cajas y dos fotos ficticias. No existían otros eventos. Una invitación pendiente de administrador global no depende de eventos; se conserva junto con el histórico revocado y todos los perfiles/roles generales.
 
 ## Herramientas y límites

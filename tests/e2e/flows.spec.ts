@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { USERS } from "../../src/lib/seed";
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
+import { PDFDocument } from "pdf-lib";
 test("enlace de recuperación inválido borra credenciales de URL y no concede sesión", async ({
   page,
 }) => {
@@ -27,7 +28,7 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
   await page.goto("/admin/events/new");
   const slug = `galeria-prueba-${Date.now()}`;
   await page.getByLabel("Nombre del evento").fill("Galería ficticia · DEMO");
-  await page.getByLabel("Dirección corta").fill(slug);
+  await page.getByLabel("Enlace del evento", { exact: true }).fill(slug);
   await page.getByLabel("Aforo total").fill("20");
   await page.getByLabel("Nombre del recinto").fill("Recinto de prueba");
   await page
@@ -36,12 +37,21 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
   const local = (ms: number) =>
     new Date(ms - 5 * 3600000).toISOString().slice(0, 16);
   for (const label of ["Inicio del evento"])
-    await page.getByLabel(label).fill(local(Date.now()));
+    await page.getByLabel(label, { exact: true }).fill(local(Date.now()));
   await page
-    .getByLabel("Apertura de puertas")
+    .getByLabel("Apertura de puertas: misma hora de inicio del evento", {
+      exact: true,
+    })
+    .uncheck();
+  await page
+    .getByLabel("Apertura de puertas", { exact: true })
     .fill(local(Date.now()).slice(11));
+  await page.getByLabel("Definir fin del evento", { exact: true }).check();
+  await page.getByLabel("Definir cierre de puertas", { exact: true }).check();
   for (const label of ["Fin del evento", "Cierre de puertas"])
-    await page.getByLabel(label).fill(local(Date.now() + 86400000));
+    await page
+      .getByLabel(label, { exact: true })
+      .fill(local(Date.now() + 86400000));
   await page.getByRole("button", { name: "Crear borrador" }).click();
   await expect(
     page.getByRole("heading", { name: "Editar evento" }),
@@ -60,13 +70,31 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
     sharp({ create: { width: 640, height: 360, channels: 3, background } })
       .png()
       .toBuffer();
+  let releaseUploads = () => {};
+  const uploadGate = new Promise<void>((resolve) => {
+    releaseUploads = resolve;
+  });
+  await page.route("**/api/events/*/images", async (route) => {
+    if (route.request().method() === "POST") await uploadGate;
+    await route.continue();
+  });
   await page.getByLabel("Agregar imágenes del evento").setInputFiles([
     { name: "uno.png", mimeType: "image/png", buffer: await make("#149ea0") },
     { name: "dos.png", mimeType: "image/png", buffer: await make("#da7635") },
   ]);
+  await expect(page.locator(".image-upload-previews img")).toHaveCount(2);
+  await expect(page.getByAltText("Vista previa de uno.png")).toBeVisible();
+  releaseUploads();
   await expect(
     page.getByRole("button", { name: "Usar de portada" }),
   ).toHaveCount(1);
+  await expect(page.locator(".image-upload-previews img")).toHaveCount(0);
+  expect(
+    await page
+      .locator(".event-image-grid img")
+      .first()
+      .evaluate((img: HTMLImageElement) => img.getBoundingClientRect().width),
+  ).toBeLessThanOrEqual(200);
   const imageUrl = await page
     .locator(".event-image-grid img")
     .first()
@@ -86,6 +114,9 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
     .click();
   await page.getByLabel("Cupo total de General").fill("0");
   await page.getByRole("button", { name: "Guardar localidad" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Editar localidad" }),
+  ).toHaveCount(0);
   await expect(page.locator("table").first()).toContainText("General");
   await page
     .getByRole("button", { name: "Editar General", exact: true })
@@ -93,6 +124,9 @@ test("edita evento, localidad agotada, portada y galería con imágenes privadas
   await expect(page.getByLabel("Cupo total de General")).toHaveValue("0");
   await page.getByLabel("Cupo total de General").fill("5");
   await page.getByRole("button", { name: "Guardar localidad" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Editar localidad" }),
+  ).toHaveCount(0);
   for (const channel of ["web", "box_office"]) {
     await page.getByLabel("Canal", { exact: true }).selectOption(channel);
     await page.getByLabel("Nombre de la fase").fill(`Precio ${channel}`);
@@ -158,7 +192,7 @@ test("organizador crea dos fiestas y configura localidad, fases y personal", asy
     await page.goto("/admin/events/new");
     await page.getByLabel("Nombre del evento").fill(title);
     await page
-      .getByLabel("Dirección corta")
+      .getByLabel("Enlace del evento", { exact: true })
       .fill(`${title.toLowerCase().replace(" ", "-")}-${Date.now()}`);
     await page.getByLabel("Aforo total").fill("25");
     await page.getByLabel("Nombre del recinto").fill("Recinto ficticio");
@@ -169,12 +203,23 @@ test("organizador crea dos fiestas y configura localidad, fases y personal", asy
       end = new Date(Date.now() + 86400000);
     const local = (d: Date) =>
       new Date(d.getTime() - 5 * 3600000).toISOString().slice(0, 16);
-    await page.getByLabel("Inicio del evento").fill(local(now));
-    await page.getByLabel("Fin del evento").fill(local(end));
     await page
-      .getByLabel("Apertura de puertas")
+      .getByLabel("Inicio del evento", { exact: true })
+      .fill(local(now));
+    await page.getByLabel("Definir fin del evento", { exact: true }).check();
+    await page.getByLabel("Definir cierre de puertas", { exact: true }).check();
+    await page
+      .getByLabel("Apertura de puertas: misma hora de inicio del evento", {
+        exact: true,
+      })
+      .uncheck();
+    await page.getByLabel("Fin del evento", { exact: true }).fill(local(end));
+    await page
+      .getByLabel("Apertura de puertas", { exact: true })
       .fill(local(new Date(Date.now() - 60000)).slice(11));
-    await page.getByLabel("Cierre de puertas").fill(local(end));
+    await page
+      .getByLabel("Cierre de puertas", { exact: true })
+      .fill(local(end));
     await page.getByRole("button", { name: "Crear borrador" }).click();
     await expect(page.locator("h1")).toHaveText(title);
     await page.getByRole("link", { name: "Localidades y precios" }).click();
@@ -210,27 +255,76 @@ test("organizador crea dos fiestas y configura localidad, fases y personal", asy
 test("taquilla vende, descarga PDF, acceso admite una sola vez y caja cierra", async ({
   page,
 }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+  });
   await login(page, "Taquilla demo");
-  await page.goto("/box-office/cash-session");
-  await page
-    .getByLabel("Evento de la caja")
-    .selectOption("00000000-0000-4000-8000-000000000002");
-  const open = page.getByRole("button", { name: "Abrir caja" });
-  if (await open.isVisible()) {
-    await page.getByLabel("Fondo inicial").fill("10000");
-    await open.click();
-    await expect(
-      page.getByRole("heading", { name: "Caja abierta", exact: true }),
-    ).toBeVisible();
-  }
   await page.goto("/box-office");
   await page
     .getByLabel("Evento activo", { exact: true })
     .selectOption("00000000-0000-4000-8000-000000000002");
   await page.getByLabel("Cantidad General").selectOption("1");
+  await page
+    .getByLabel("Nombre del comprador (opcional)")
+    .fill("Comprador de prueba");
+  const open = page.getByRole("button", { name: "Abrir caja", exact: true });
+  await expect(
+    page.getByRole("button", { name: "Confirmar cobro y emitir" }),
+  ).toBeDisabled();
+  await open.click();
+  const dialog = page.getByRole("dialog", { name: "Abrir caja", exact: true });
+  await expect(dialog).toContainText("Noche tropical");
+  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page).toHaveURL(/\/box-office$/);
+  await expect(page.getByLabel("Cantidad General")).toHaveValue("1");
+  await open.click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await dialog.getByLabel("Fondo inicial", { exact: true }).fill("10000");
+  await page.screenshot({
+    path: "test-results/cash-opening-mobile.png",
+    fullPage: true,
+  });
+  await page.route(
+    "**/api/commands",
+    (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "No se pudo abrir la caja. Intenta nuevamente.",
+        }),
+      }),
+    { times: 1 },
+  );
+  await dialog
+    .getByRole("button", { name: "Abrir caja y continuar", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText("Intenta nuevamente");
+  await expect(dialog.getByLabel("Fondo inicial", { exact: true })).toHaveValue(
+    "$ 10.000",
+  );
+  await dialog
+    .getByRole("button", { name: "Abrir caja y continuar", exact: true })
+    .click();
+  await expect(dialog).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Caja abierta para este evento" }),
+  ).toContainText("Caja abierta para este evento");
+  await expect(page).toHaveURL(/\/box-office$/);
+  await expect(page.getByLabel("Cantidad General")).toHaveValue("1");
+  await expect(page.getByLabel("Nombre del comprador (opcional)")).toHaveValue(
+    "Comprador de prueba",
+  );
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole("button", { name: "Confirmar cobro y emitir" }).click();
   await expect(page.locator(".ticket")).toHaveCount(1);
-  await expect(page.locator(".ticket img")).toBeVisible();
+  await expect(page.locator(".ticket img").first()).toBeVisible();
   await page.getByLabel("Tamaño del papel").selectOption("ticket70x40");
   await page.reload();
   await expect(page.getByLabel("Tamaño del papel")).toHaveValue("ticket70x40");
@@ -240,25 +334,130 @@ test("taquilla vende, descarga PDF, acceso admite una sola vez y caja cierra", a
   for (const paper of ["ticket70x40", "ticket70x100"]) {
     await page.getByLabel("Tamaño del papel").selectOption(paper);
     await page.emulateMedia({ media: "print" });
-    const bounds = await page.locator(".paper-ticket").evaluate((el) => {
-      const page = el.getBoundingClientRect();
-      const terms = el
-        .querySelector(".paper-ticket-terms")!
-        .getBoundingClientRect();
-      const qr = el.querySelector("img")!.getBoundingClientRect();
-      return { bottom: page.bottom, terms: terms.bottom, qr: qr.bottom };
-    });
-    expect(
-      bounds.terms,
-      `${paper}: ${JSON.stringify(bounds)}`,
-    ).toBeLessThanOrEqual(bounds.bottom);
-    expect(
-      bounds.qr,
-      `${paper}: ${JSON.stringify(bounds)}`,
-    ).toBeLessThanOrEqual(bounds.bottom);
+    await expect(page.locator(".paper-ticket")).toHaveCount(
+      paper === "ticket70x40" ? 2 : 1,
+    );
+    const bounds = await page
+      .locator(".paper-ticket")
+      .first()
+      .evaluate((el) => ({
+        width: el.getBoundingClientRect().width,
+        height: el.getBoundingClientRect().height,
+        clip: getComputedStyle(el).overflow,
+      }));
+    expect(bounds.width).toBeCloseTo((70 * 96) / 25.4, 0);
+    expect(bounds.height).toBeCloseTo(
+      ((paper === "ticket70x40" ? 40 : 100) * 96) / 25.4,
+      0,
+    );
+    expect(bounds.clip).toBe("hidden");
+    const browserPdf = await PDFDocument.load(
+      await page.pdf({
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
+        scale: 1,
+        margin: { top: 0, bottom: 0, left: 0, right: 0 },
+      }),
+    );
+    expect(browserPdf.getPageCount()).toBe(paper === "ticket70x40" ? 2 : 1);
+    for (const sheet of browserPdf.getPages()) {
+      // Chromium quantizes CSS millimetres when generating the PDF media box.
+      expect(Math.abs(sheet.getWidth() - (70 * 72) / 25.4)).toBeLessThan(1);
+      expect(
+        Math.abs(
+          sheet.getHeight() -
+            ((paper === "ticket70x40" ? 40 : 100) * 72) / 25.4,
+        ),
+      ).toBeLessThan(1);
+    }
     await expect(page.locator(".ticket-sheet")).toBeHidden();
     await page.emulateMedia({ media: "screen" });
   }
+  await page.getByLabel("Tamaño del papel").selectOption("ticket70x40");
+  await page.evaluate(() => {
+    window.print = () => {
+      document.documentElement.dataset.printDialog = "returned-without-result";
+    };
+  });
+  const browserResults: string[] = [];
+  const printRegistrations: string[] = [];
+  const printStateRefreshes: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/state")
+      printStateRefreshes.push(request.url());
+    if (
+      request.url().endsWith("/api/commands") &&
+      request.method() === "POST"
+    ) {
+      const body = request.postDataJSON();
+      if (["print_request", "print_batch_request"].includes(body.action))
+        printRegistrations.push(body.action);
+      if (body.action === "print_result") browserResults.push(body.status);
+    }
+  });
+  const printButton = page.getByRole("button", { name: /^Imprimir / });
+  const firstJob = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/commands") &&
+      response.request().postDataJSON()?.action === "print_batch_request",
+  );
+  await printButton.click();
+  const cancelledJob = await (await firstJob).json();
+  await expect(page.locator("html")).toHaveAttribute(
+    "data-print-dialog",
+    "returned-without-result",
+  );
+  await expect(
+    page.getByRole("heading", {
+      name: "¿Qué ocurrió con la impresión?",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.locator(".toast")).toContainText(
+    "no informa si imprimiste o cancelaste",
+  );
+  expect(browserResults).toEqual([]);
+  expect(printRegistrations).toEqual(["print_batch_request"]);
+  expect(printStateRefreshes).toEqual([]);
+  await expect(printButton).toBeDisabled();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "No se imprimió / cancelé", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", {
+      name: "¿Qué ocurrió con la impresión?",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  expect(browserResults).toEqual(["failed"]);
+  const terminal = await page.request.post("/api/commands", {
+    headers: { origin: "http://127.0.0.1:3100" },
+    data: {
+      action: "print_result",
+      job_id: cancelledJob.jobs[0].job_id,
+      status: "confirmed",
+    },
+  });
+  expect(terminal.status()).toBe(400);
+  await expect(printButton).toBeEnabled();
+  await printButton.click();
+  await expect(
+    page.getByRole("heading", {
+      name: "¿Qué ocurrió con la impresión?",
+      exact: true,
+    }),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Papel impreso y verificado", exact: true })
+    .click();
+  await expect(page.locator(".toast")).toContainText(
+    "Impresión física verificada",
+  );
+  expect(browserResults).toEqual(["failed", "confirmed"]);
+  // Only explicit user outcomes were sent from the browser; opening its dialog sent no submission.
+  expect(browserResults).not.toContain("submitted");
   const orderId = new URL(page.url()).pathname.split("/")[2];
   const doc = await page.request.post("/api/tickets", {
     headers: { origin: "http://127.0.0.1:3100" },
@@ -320,6 +519,10 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
   page,
 }) => {
   await page.addInitScript(() => {
+    Object.defineProperty(crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
     Object.defineProperty(navigator, "canShare", {
       value: () => true,
       configurable: true,
@@ -357,9 +560,17 @@ test("comprador reserva varias entradas y pago demo emite QR distintos", async (
   await page.getByRole("button", { name: "Simular aprobación" }).click();
   await expect(page.locator(".ticket")).toHaveCount(2);
   const sources = await page
-    .locator(".ticket img")
-    .evaluateAll((imgs) => imgs.map((i) => (i as HTMLImageElement).src));
+    .locator(".ticket")
+    .evaluateAll((tickets) =>
+      tickets.map(
+        (ticket) => (ticket.querySelector("img") as HTMLImageElement).src,
+      ),
+    );
   expect(sources[0]).not.toBe(sources[1]);
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".paper-ticket")).toHaveCount(4);
+  await expect(page.locator(".ticket-sheet")).toBeHidden();
+  await page.emulateMedia({ media: "screen" });
   const shareButton = page.getByRole("button", {
     name: "Compartir PDF por WhatsApp",
     exact: true,
@@ -623,4 +834,124 @@ test("perfil con foto privada e invitación a varios eventos", async ({
     .click();
   await expect(page).toHaveURL(/\/login$/);
   expect((await page.request.get("/api/profile/avatar")).status()).toBe(401);
+});
+
+test("taquilla elige una de cinco boletas y registra solo esa sin renumerar", async ({
+  page,
+}) => {
+  await login(page, "Taquilla demo");
+  await page.goto("/box-office");
+  await page
+    .getByLabel("Evento activo", { exact: true })
+    .selectOption("00000000-0000-4000-8000-000000000002");
+  await page.getByLabel("Medio de cobro").selectOption("transfer");
+  await page.getByLabel("Cantidad General").selectOption("5");
+  await page.getByLabel("Referencia de transferencia").fill("PRUEBA-SELECCION");
+  await page
+    .getByLabel("Confirmé el importe en la cuenta del comercio")
+    .check();
+  await page.getByRole("button", { name: "Confirmar cobro y emitir" }).click();
+  await expect(page.locator(".ticket")).toHaveCount(5);
+  const orderId = new URL(page.url()).pathname.split("/")[2];
+  const response = await page.request.post("/api/tickets", {
+    headers: { origin: "http://127.0.0.1:3100" },
+    data: { order_id: orderId },
+  });
+  expect(response.ok()).toBeTruthy();
+  const original = await response.json();
+  const chosen = original.tickets[2];
+  expect(
+    new Set(
+      original.tickets.map((t: { event_sequence: number }) => t.event_sequence),
+    ).size,
+  ).toBe(5);
+  await page
+    .getByRole("button", { name: "Quitar selección", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: /^Imprimir seleccionadas/ }),
+  ).toBeDisabled();
+  await page
+    .getByRole("checkbox", {
+      name: `Imprimir boleta ${chosen.visible_number}`,
+      exact: true,
+    })
+    .check();
+  await expect(
+    page.getByRole("status").filter({ hasText: "1 de 5 seleccionadas" }),
+  ).toContainText("2 tramos");
+  await expect(page.locator(".ticket-caption").nth(2)).toContainText(
+    `Boleta N.º ${String(chosen.event_sequence).padStart(6, "0")}`,
+  );
+  await expect(page.locator(".ticket")).toHaveCount(5);
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(".paper-ticket")).toHaveCount(2);
+  expect(
+    await page
+      .locator(".paper-ticket")
+      .evaluateAll((els) =>
+        els.map((el) => (el as HTMLElement).dataset.ticketId),
+      ),
+  ).toEqual([chosen.id, chosen.id]);
+  const pdf = await PDFDocument.load(
+    await page.pdf({ preferCSSPageSize: true, displayHeaderFooter: false }),
+  );
+  expect(pdf.getPageCount()).toBe(2);
+  await page.emulateMedia({ media: "screen" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "test-results/selected-ticket-mobile.png",
+    fullPage: true,
+  });
+  await page.evaluate(() => {
+    window.print = () => {};
+  });
+  const registered = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/commands") &&
+      r.request().postDataJSON()?.action === "print_batch_request",
+  );
+  await page
+    .getByRole("button", { name: "Imprimir seleccionadas (1)", exact: true })
+    .click();
+  const jobResponse = await registered;
+  expect(jobResponse.request().postDataJSON().ticket_ids).toEqual([chosen.id]);
+  expect((await jobResponse.json()).jobs).toHaveLength(1);
+  await expect(
+    page.getByRole("checkbox", {
+      name: `Imprimir boleta ${chosen.visible_number}`,
+      exact: true,
+    }),
+  ).toBeDisabled();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "No se imprimió / cancelé", exact: true })
+    .click();
+  const after = await (
+    await page.request.post("/api/tickets", {
+      headers: { origin: "http://127.0.0.1:3100" },
+      data: { order_id: orderId },
+    })
+  ).json();
+  expect(
+    after.tickets.map(
+      (t: { id: string; event_sequence: number; credential: string }) => [
+        t.id,
+        t.event_sequence,
+        t.credential,
+      ],
+    ),
+  ).toEqual(
+    original.tickets.map(
+      (t: { id: string; event_sequence: number; credential: string }) => [
+        t.id,
+        t.event_sequence,
+        t.credential,
+      ],
+    ),
+  );
+  await page
+    .getByRole("button", { name: "Seleccionar todas", exact: true })
+    .click();
+  await expect(page.getByRole("checkbox", { checked: true })).toHaveCount(5);
 });

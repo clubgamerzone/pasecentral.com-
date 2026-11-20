@@ -1,6 +1,10 @@
 export const PAPER_SIZES = {
   receipt80: { label: "Recibo de 80 mm", width: 80, height: null },
-  ticket70x40: { label: "Boleta de 70 × 40 mm", width: 70, height: 40 },
+  ticket70x40: {
+    label: "Boleta doble · 2 tramos de 70 × 40 mm",
+    width: 70,
+    height: 40,
+  },
   ticket70x100: {
     label: "Boleta de concierto de 70 × 100 mm",
     width: 70,
@@ -14,12 +18,13 @@ export type PrintSettings = {
   topMm: number;
   darkness: number;
 };
-export const PRINT_SETTINGS_KEY = "pasecentral.print-settings.v1";
+export const PRINT_SETTINGS_KEY = "pasecentral.print-settings.v3";
+export const LEGACY_PRINT_SETTINGS_KEY = "pasecentral.print-settings.v2";
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
-  paper: "receipt80",
+  paper: "ticket70x40",
   tracking: "black_mark",
-  topMm: 0,
-  darkness: 18,
+  topMm: 4,
+  darkness: 26,
 };
 export function paperPreset(paper: PaperSize): PrintSettings {
   return {
@@ -28,6 +33,16 @@ export function paperPreset(paper: PaperSize): PrintSettings {
     topMm: paper === "ticket70x40" ? 4 : 0,
     darkness: paper === "ticket70x40" ? 26 : 18,
   };
+}
+export function upgradeLegacyPrintSettings(value: string): string {
+  const settings = parsePrintSettings(JSON.parse(value));
+  return JSON.stringify({
+    ...settings,
+    darkness:
+      settings.paper === "ticket70x40" && settings.darkness === 16
+        ? 26
+        : settings.darkness,
+  });
 }
 export function parsePrintSettings(value: unknown): PrintSettings {
   if (!value || typeof value !== "object")

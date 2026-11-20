@@ -16,7 +16,8 @@
     "worker": "tsx --env-file-if-exists=.env.local scripts/delivery.ts",
     "format": "prettier --write src scripts tests docs *.json *.ts *.mjs",
     "test:connected": "tsx --env-file-if-exists=.env.local scripts/verify-connected.ts",
-    "worker:configure": "tsx --env-file-if-exists=.env.local scripts/configure-email-worker.ts"
+    "worker:configure": "tsx --env-file-if-exists=.env.local scripts/configure-email-worker.ts",
+    "dev:lan": "next dev --hostname 0.0.0.0 --port 3000"
   },
   "engines": {
     "node": ">=22.14.0"

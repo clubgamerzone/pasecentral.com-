@@ -1,5 +1,7 @@
 # Operación y dónde encontrar cada función
 
+Pruebas de PC/Honeywell en la misma red: `docs/LOCAL_NETWORK.md`; frontend y API en puerto3000, inicio `npm run dev:lan`, origen APP_URL y firewall privado. Limpieza local/Supabase autorizada y respaldos: `docs/TEST_DATA_RESET.md`.
+
 ## Rutas
 
 | Tarea                                | Pantalla                                               | Implementación                                                          |
@@ -121,3 +123,30 @@ Entrar con el mismo correo invitado → Mi perfil → Continuar y activar permis
 
 ## Seleccionar papel para boletas
 En pantalla de entradas, operadores de taquilla usan Papel e impresora: recibo80mm, boleta70x40mm o concierto70x100mm. Preferencias guardadas por navegador; Deteccion/material y ajuste vertical en desplegable. QZ usa ESC/POS para80 y ZPL para70, segun impresora configurada; browser requiere seleccionar papel/escala en controlador. Guia completa y limites de homologacion: docs/PRINT_PAPER_SETTINGS.md. Implementacion: print-options.tsx, print-settings.ts, ticket-zpl.ts y printer.ts.
+
+## Aclaracion taquilla/email/WhatsApp (2026-11-19)
+El propietario mantiene el modelo actual de roles, sin solicitar nueva invitacion de organizacion. En venta presencial confirmada issue crea delivery_job si hay buyer_email; el campo de taquilla Email para entrega digital es opcional. Email contiene QR y PDF individual por entrada; no prometer llegada instantanea: cola/worker, scheduler conectado activo cada minuto (consulta readonly actual confirmada), reintentos y entrega externa. No se envio correo en esta revision. Una ventana WhatsApp abierta no habilita adjuntar/enviar sin intervencion desde la web. PC: boton compartir prepara PDF combinado, fallback descarga y adjuntar Documento en WhatsApp Web. Android: menu de compartir archivos si navegador/HTTPS lo soportan y WhatsApp instalado, seleccionar chat/enviar manualmente; en IP LAN HTTP actual Web Share no esta disponible por requerir contexto seguro, usar descarga y compartir desde Archivos/Descargas. No prometer compatibilidad de WhatsApp app con EDA51 sin probarla. Automatico sigue pendiente de numero remitente/WABA/CloudAPI, configuracion Meta, plantilla de utilidad aprobada para iniciacion pertinente, autorizacion de contacto y cola/webhooks de entrega; cuenta Meta empresarial por si sola no basta. Fuentes oficiales WhatsApp Help click-to-chat5913398998672934, onboarding de WhatsAppBusiness, MDN navigator.share contexto seguro. Sin cambios de codigo/permisos ni push.
+
+Crear/editar evento: Aforo ilimitado, Definir fin, apertura misma hora de inicio y Definir cierre ocultan controles no aplicables. Cupos de localidades siguen independientes. Sin cierre, acceso usa fin del evento; sin ambos, finalizar/cancelar manualmente. Mapa y migracion: docs/EVENT_OPTIONS.md.
+
+## Abrir caja sin salir de Taquilla (2026-11-19)
+
+En Taquilla, selecciona el evento y el medio Efectivo. Si no tienes caja abierta para ese evento, pulsa **Abrir caja** en el aviso de Cobro y emisión. Una ventana muestra el evento y solicita **Fondo inicial** (efectivo para cambio, admite $ 0). Pulsa **Abrir caja y continuar**: cierra la ventana y habilita la venta en la misma página, conservando cantidades y datos ya escritos. Cancelar/Escape no abren caja. Si falla la petición, el error aparece dentro de la ventana y conserva el fondo para reintentar.
+
+Código: `src/components/cash-opening.tsx` (diálogo nativo, formulario COP y error), `BoxOffice` en operations.tsx (botón, estado y caja abierta). Reutiliza `cash_open` en service.ts: permisos de venta, evento/operador autenticado, transacción, restricción de una sesión abierta y auditoría. Sin nuevas tablas, dependencias ni migración. La sección Caja sigue disponible para movimientos, cierres e historial.
+
+Prueba automatizada en tests/e2e/flows.spec.ts, flujo de taquilla: cancelación, permanencia de URL/cantidades/contacto, error simulado y reintento, apertura real en base demo aislada, venta y cierre posterior. Captura móvil temporal test-results/cash-opening-mobile.png. No abre cajas ni vende en Supabase durante la prueba.
+
+## Consulta de compra al llegar sin internet en el teléfono (2026-11-19)
+Revisión del flujo actual solicitada por propietario: gestores consultan Mis eventos → evento → Ventas y entradas; Taquilla aún no tiene historial/buscador de compradores en su propia pantalla. Control de acceso → Consulta manual permite buscar por consecutivo o serial, seleccionar entrada y autorizar ingreso con motivo/confirmación, aplicando validación transaccional y auditoría. El operador requiere permiso access (Incluir acceso), no basta vender.
+No existe búsqueda por documento ni se guarda documento de identidad en el modelo actual; no presentar esa función como disponible. Ampliación por definir: historial de ventas en Taquilla con búsqueda de comprador/nombre/correo/teléfono/orden, comprobación de identidad y selección individual de entrada, sin conceder ingreso automático solo por conocer correo. Regalos/transferencias deben respetar titular actual. El operador/dispositivo necesita internet; el cliente puede mostrar PDF/QR ya descargado sin conexión. Sin implementación ni cambios de permisos/datos en esta aclaración.
+
+## Boleta doble y arte del evento (2026-11-19)
+Integración vigente: TICKET_DOUBLE_LAYOUT.md. Evento → Logo y diseño para boletas permite subir una composición horizontal monocromática separada de portada/galería y editar su frase. Pantalla de entradas muestra la misma imagen que PDF y gráficos impresos. Formato predeterminado: dos tramos consecutivos70x40 por persona, un QR arriba, precio histórico/localidad/fase para contar talones y arte/datos abajo, sin duplicar entrada o cobro. Oscuridad16 y offset+4mm iniciales; solo modificables por navegador como antes.
+Requiere migración013 antes de ejecutar esta versión contra SQL conectado. La app publicada/correos de su worker seguirán con el código desplegado anterior hasta publicación autorizada; local tiene el nuevo PDF. No enviar ensayos reales desde producción para verificarlo. Prueba física de nueva plantilla pendiente; no se ha impreso en esta integración.
+
+Selección de impresión y número de boleta por evento: véase TICKET_SELECTION.md (2026-11-20). Quitar selección, marcar solo entradas deseadas, Imprimir seleccionadas (N); PDF compartido/descargado conserva orden completa. BOLETA N.ºusa secuencia de emisión, no posición del trabajo.
+
+Boletas preimpresas para venta posterior: menú Boletas preimpresas → Inventario y lotes / Activar venta. Guía completa PREPRINTED_TICKETS.md (2026-11-20). Crear lote no es venta, imprimir no activa y acceso nunca vende. Resguardar papel/QR y bloquear pérdidas; confirmar transferencia o caja antes de activar. Código sigue local, no publicado.
+
+Boletas preimpresas: Desactivar y Eliminar están en inventario y vista previa de lote, también por boleta. Motivo y confirmación obligatorios. Desactivar es definitivo; eliminar solo sin ventas. Las ventas se anulan por su orden. Guía PREPRINTED_TICKETS.md, ampliación2026-11-20.

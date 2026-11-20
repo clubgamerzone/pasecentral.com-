@@ -10,7 +10,7 @@ test("fecha/hora de puertas, precio COP formateado y fase editable para ambos ca
   await page
     .getByLabel("Nombre del evento", { exact: true })
     .fill("Fases ficticias · DEMO");
-  await page.getByLabel("Dirección corta").fill(id);
+  await page.getByLabel("Enlace del evento", { exact: true }).fill(id);
   await page.getByLabel("Aforo total").fill("10");
   await page.getByLabel("Nombre del recinto").fill("Recinto ficticio");
   await page
@@ -20,6 +20,13 @@ test("fecha/hora de puertas, precio COP formateado y fase editable para ambos ca
   await page
     .getByLabel("Inicio del evento", { exact: true })
     .fill(local(Date.now()));
+  await page.getByLabel("Definir fin del evento", { exact: true }).check();
+  await page.getByLabel("Definir cierre de puertas", { exact: true }).check();
+  await page
+    .getByLabel("Apertura de puertas: misma hora de inicio del evento", {
+      exact: true,
+    })
+    .uncheck();
   await page
     .getByLabel("Fin del evento", { exact: true })
     .fill(local(Date.now() - 86400000));

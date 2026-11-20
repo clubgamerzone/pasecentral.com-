@@ -1,0 +1,1 @@
+ALTER TABLE ticket_types ALTER COLUMN capacity DROP NOT NULL;

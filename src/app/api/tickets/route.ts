@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
+import { renderTicketLayout } from "@/lib/ticket-layout";
 import { z } from "zod";
 import { database } from "@/lib/db";
 import { currentActor } from "@/lib/auth";
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
     const tickets = await Promise.all(
       doc.tickets.map(async (t) => ({
         ...t,
+        layout: await renderTicketLayout(t, doc.event),
         qr: await QRCode.toDataURL(t.credential, { width: 360, margin: 4 }),
       })),
     );

@@ -124,7 +124,9 @@ function AnalyticsTable({
                           }
                         >
                           {r[c.key] == null
-                            ? "—"
+                            ? ["capacity", "available"].includes(c.key)
+                              ? "Sin límite"
+                              : "—"
                             : c.format === "money"
                               ? money(r[c.key])
                               : c.format === "percent"
@@ -267,7 +269,9 @@ export function AnalyticsPanel({
         signedTone(s.approved_cop),
         "neutral",
         signedTone(s.used),
-        capacity > 0 && s.available / capacity <= 0.1 ? "warning" : "neutral",
+        s.available !== null && capacity > 0 && s.available / capacity <= 0.1
+          ? "warning"
+          : "neutral",
         s.pending_orders > 0 ? "warning" : "neutral",
         "neutral",
         s.review_orders > 0 ? "bad" : s.paid_orders > 0 ? "good" : "neutral",
@@ -293,13 +297,15 @@ export function AnalyticsPanel({
         s.approved_cop > 0 ? "Cobros registrados" : "Sin cobros",
         "Promedio del período",
         "Asistencia registrada",
-        capacity === 0
-          ? "Sin aforo seleccionado"
-          : s.available === 0
-            ? "Sin cupo disponible"
-            : s.available / capacity <= 0.1
-              ? "Queda 10% o menos del aforo"
-              : "Cupo disponible",
+        s.available === null
+          ? "Incluye eventos sin límite total"
+          : capacity === 0
+            ? "Sin aforo seleccionado"
+            : s.available === 0
+              ? "Sin cupo disponible"
+              : s.available !== null && s.available / capacity <= 0.1
+                ? "Queda 10% o menos del aforo"
+                : "Cupo disponible",
         s.pending_orders > 0 ? "Pendientes de pago" : "Sin reservas",
         "Dato del período",
         s.review_orders > 0
@@ -481,7 +487,7 @@ export function AnalyticsPanel({
               ],
               [
                 "Disponibles ahora",
-                s.available,
+                s.available ?? "Sin límite total",
                 `${s.events} eventos seleccionados`,
               ],
               [
@@ -537,7 +543,9 @@ export function AnalyticsPanel({
           {(s.review_orders > 0 ||
             s.pending_orders > 0 ||
             s.cash_difference_cop !== 0 ||
-            (capacity > 0 && s.available / capacity <= 0.1)) && (
+            (s.available !== null &&
+              capacity > 0 &&
+              s.available / capacity <= 0.1)) && (
             <div
               className="analytics-alerts"
               aria-label="Indicadores que requieren atención"
@@ -557,11 +565,13 @@ export function AnalyticsPanel({
                   Caja: {money(s.cash_difference_cop)} de diferencia agregada
                 </StatusTag>
               )}
-              {capacity > 0 && s.available / capacity <= 0.1 && (
-                <StatusTag tone="warning">
-                  Cupo limitado: {s.available} disponibles
-                </StatusTag>
-              )}
+              {s.available !== null &&
+                capacity > 0 &&
+                s.available / capacity <= 0.1 && (
+                  <StatusTag tone="warning">
+                    Cupo limitado: {s.available} disponibles
+                  </StatusTag>
+                )}
             </div>
           )}
           <div

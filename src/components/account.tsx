@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useApp, Heading, Field } from "./app";
 import { formValues } from "./operations";
@@ -15,9 +16,9 @@ export function MyProfile() {
   const [uploading, setUploading] = useState(false);
   if (!data.actor || !data.profile)
     return (
-      <a className="btn primary" href="/login">
+      <Link className="btn primary" href="/login">
         Iniciar sesión
-      </a>
+      </Link>
     );
   const p = data.profile;
   async function photo(file?: File, remove = false) {
@@ -54,9 +55,9 @@ export function MyProfile() {
             {invitationRoles[data.pending_invitation.role]} aceptando la
             invitación.
           </p>
-          <a className="btn primary" href="/invite">
+          <Link className="btn primary" href="/invite">
             Continuar y activar permisos del equipo
-          </a>
+          </Link>
         </section>
       )}
       {typeof window !== "undefined" &&
@@ -217,9 +218,9 @@ export function MyProfile() {
             <button className="btn primary" disabled={busy || uploading}>
               Guardar perfil
             </button>
-            <a className="btn" href="/forgot-password">
+            <Link className="btn" href="/forgot-password">
               Cambiar contraseña
-            </a>
+            </Link>
           </div>
         </form>
       </section>
@@ -304,12 +305,12 @@ export function AcceptInvitation() {
           </p>
         ) : !data.actor ? (
           <div className="buttons">
-            <a className="btn primary" href="/login?invitation=1&register=1">
+            <Link className="btn primary" href="/login?invitation=1&register=1">
               Crear cuenta para aceptar la invitación
-            </a>
-            <a className="btn" href="/login?invitation=1">
+            </Link>
+            <Link className="btn" href="/login?invitation=1">
               Ya tengo una cuenta
-            </a>
+            </Link>
           </div>
         ) : (
           <>

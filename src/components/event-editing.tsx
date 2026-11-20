@@ -1,19 +1,57 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Row } from "@/lib/db";
+import { TicketArtEditor } from "./ticket-art-editor";
 import { useApp, Field } from "./app";
 import { formValues } from "./operations";
-import { EventSchedule, scheduleValues } from "./enhanced-fields";
+import {
+  EventCapacity,
+  EventSchedule,
+  TicketCapacity,
+  scheduleValues,
+} from "./enhanced-fields";
 export function EventDetails({ event: e }: { event: Row }) {
   const { run, busy, refresh, notify } = useApp();
   const [uploading, setUploading] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<
+    { id: string; url: string; name: string; failed: boolean }[]
+  >([]);
+  const previewUrls = useRef(new Map<string, string>());
+  useEffect(() => {
+    const urls = previewUrls.current;
+    return () => {
+      for (const url of urls.values()) URL.revokeObjectURL(url);
+      urls.clear();
+    };
+  }, []);
+  function discardPreview(id: string) {
+    const url = previewUrls.current.get(id);
+    if (url) URL.revokeObjectURL(url);
+    previewUrls.current.delete(id);
+    setPreviews((previous) => previous.filter((p) => p.id !== id));
+  }
   async function images(files: File[]) {
-    setUploading(true);
     try {
+      if (files.length + e.images.length > 8)
+        throw new Error("Puedes guardar hasta 8 imágenes por evento");
       for (const file of files) {
         if (file.size > 4 * 1024 * 1024)
           throw new Error("Cada imagen debe pesar como máximo 4 MB");
+        if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
+          throw new Error("Usa imágenes JPG, PNG o WebP");
+      }
+      for (const url of previewUrls.current.values()) URL.revokeObjectURL(url);
+      previewUrls.current.clear();
+      const batch = files.map((file, index) => {
+        const id = `${Date.now()}-${index}`,
+          url = URL.createObjectURL(file);
+        previewUrls.current.set(id, url);
+        return { id, url, name: file.name, failed: false };
+      });
+      setPreviews(batch);
+      setUploading(true);
+      for (const [index, file] of files.entries()) {
         const body = new FormData();
         body.append("image", file);
         const response = await fetch(`/api/events/${e.id}/images`, {
@@ -22,9 +60,12 @@ export function EventDetails({ event: e }: { event: Row }) {
         });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error);
+        await refresh();
+        discardPreview(batch[index].id);
       }
       notify("Imágenes guardadas");
     } catch (err) {
+      setPreviews((previous) => previous.map((p) => ({ ...p, failed: true })));
       notify((err as Error).message, true);
     } finally {
       await refresh();
@@ -84,14 +125,7 @@ export function EventDetails({ event: e }: { event: Row }) {
             label="Nombre del evento"
             defaultValue={e.title}
           />
-          <Field
-            name="capacity"
-            label="Aforo total"
-            type="number"
-            min={1}
-            max={1000000}
-            defaultValue={e.capacity}
-          />
+          <EventCapacity event={e} />
           <Field
             name="venue_name"
             label="Nombre del recinto"
@@ -118,6 +152,7 @@ export function EventDetails({ event: e }: { event: Row }) {
           anteriormente conservan su información original.
         </p>
       </section>
+      <TicketArtEditor event={e} />
       <section className="panel">
         <h2>Portada y galería</h2>
         <p className="helper" style={{ margin: "12px 0 20px" }}>
@@ -139,6 +174,35 @@ export function EventDetails({ event: e }: { event: Row }) {
           />
         </label>
         {uploading && <p role="status">Guardando imágenes…</p>}
+        {previews.length > 0 && (
+          <div
+            className="image-upload-previews"
+            aria-label="Vista previa de imágenes seleccionadas"
+          >
+            {previews.map((preview) => (
+              <div key={preview.id}>
+                <img
+                  src={preview.url}
+                  alt={`Vista previa de ${preview.name}`}
+                />
+                <p role="status">
+                  {preview.failed
+                    ? "No guardada. Intenta subirla nuevamente."
+                    : "Subiendo imagen…"}
+                </p>
+                {preview.failed && (
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => discardPreview(preview.id)}
+                  >
+                    Descartar vista previa
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <div className="event-image-grid">
           {e.images.map((image: Row, index: number) => (
             <div key={image.id}>
@@ -223,53 +287,84 @@ export function EditTicketType({
   type: Row;
   eventId: string;
 }) {
-  const { run, busy } = useApp();
+  const { run, busy, data } = useApp();
+  const event = data.events.find((e) => e.id === eventId);
   const [editing, setEditing] = useState(false);
-  return editing ? (
-    <form
-      className="section-stack"
-      onSubmit={async (ev) => {
-        ev.preventDefault();
-        if (
-          await run(
-            {
-              action: "update_type",
-              event_id: eventId,
-              ticket_type_id: t.id,
-              ...formValues(ev.currentTarget),
-            },
-            "Localidad actualizada",
-          )
-        )
-          setEditing(false);
-      }}
-    >
-      <Field name="name" label={`Nombre de ${t.name}`} defaultValue={t.name} />
-      <Field
-        name="capacity"
-        label={`Cupo total de ${t.name}`}
-        type="number"
-        min={t.committed}
-        max={1000000}
-        defaultValue={t.capacity}
-      />
-      <span className="helper">
-        Disponibles = cupo total − {t.committed} comprometidas. El aforo total
-        limita la venta de todas las localidades.
-      </span>
-      <div className="buttons">
-        <button className="btn primary" disabled={busy}>
-          Guardar localidad
-        </button>
-        <button type="button" className="btn" onClick={() => setEditing(false)}>
-          Cancelar edición
-        </button>
-      </div>
-    </form>
-  ) : (
-    <button className="btn" onClick={() => setEditing(true)}>
-      Editar {t.name}
-    </button>
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (editing) dialog.current?.showModal();
+  }, [editing]);
+  return (
+    <>
+      <button
+        type="button"
+        className="btn small"
+        onClick={() => setEditing(true)}
+      >
+        Editar {t.name}
+      </button>
+      {editing && (
+        <dialog
+          ref={dialog}
+          className="panel capacity-dialog"
+          aria-labelledby={`edit-type-${t.id}`}
+          onCancel={() => setEditing(false)}
+        >
+          <h2 id={`edit-type-${t.id}`}>Editar localidad</h2>
+          <p className="helper">
+            {t.name} · {t.committed} entradas comprometidas
+          </p>
+          <form
+            className="section-stack"
+            onSubmit={async (ev) => {
+              ev.preventDefault();
+              if (
+                await run(
+                  {
+                    action: "update_type",
+                    event_id: eventId,
+                    ticket_type_id: t.id,
+                    ...formValues(ev.currentTarget),
+                  },
+                  "Localidad actualizada",
+                )
+              )
+                setEditing(false);
+            }}
+          >
+            <Field
+              name="name"
+              label={`Nombre de ${t.name}`}
+              defaultValue={t.name}
+            />
+            <TicketCapacity
+              label={`Cupo total de ${t.name}`}
+              unlimitedLabel={`Cupo ilimitado de ${t.name}`}
+              unlimitedAllowed={event?.capacity === null}
+              minimum={t.committed}
+              maximum={event?.capacity ?? 1000000}
+              capacity={t.capacity}
+            />
+            <p className="helper">
+              El cupo incluye las entradas vendidas y las reservas vigentes. No
+              puede ser menor que las entradas comprometidas.
+            </p>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="btn"
+                onClick={() => setEditing(false)}
+              >
+                Cancelar edición
+              </button>
+              <button className="btn primary" disabled={busy}>
+                Guardar localidad
+              </button>
+            </div>
+          </form>
+        </dialog>
+      )}
+    </>
   );
 }
 export function EventGallery({ event: e }: { event: Row }) {

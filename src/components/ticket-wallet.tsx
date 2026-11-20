@@ -1,5 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
+import { Building2, Plus, Save, CalendarDays, Users, Mail } from "lucide-react";
 import { useApp, Heading, Field, Badge, when, Empty } from "./app";
 import { Orders } from "./operations";
 export function DeleteAccount() {
@@ -220,9 +222,9 @@ export function TicketWallet() {
                   <Badge status={t.status} />
                 )}
               </span>
-              <a className="btn small" href={`/tickets/${t.order_id}`}>
+              <Link className="btn small" href={`/tickets/${t.order_id}`}>
                 Ver entradas
-              </a>
+              </Link>
             </div>
           ))
         )}
@@ -291,57 +293,158 @@ export function Organizations() {
     <>
       <Heading
         title="Organizaciones"
-        subtitle="Crea y modifica los organizadores que puedes seleccionar al crear un evento."
+        subtitle="Administra los equipos que organizan tus eventos."
       />
-      {data.organizations.map((o) => (
-        <form
-          className="panel"
-          style={{ marginBottom: 20 }}
-          key={o.id}
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(
-              {
-                action: "organization_save",
-                organization_id: o.id,
-                ...Object.fromEntries(new FormData(e.currentTarget)),
-              },
-              "Organización actualizada",
-            );
-          }}
-        >
-          <Field
-            name="name"
-            label={`Nombre de ${o.name}`}
-            defaultValue={o.name}
-          />
-          <button className="btn" disabled={busy}>
-            Guardar organización
-          </button>
-        </form>
-      ))}
-      <form
-        className="panel"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void run(
-            {
-              action: "organization_save",
-              ...Object.fromEntries(new FormData(e.currentTarget)),
-            },
-            "Organización creada",
-          );
-        }}
-      >
-        <Field name="name" label="Nombre de la nueva organización" />
-        <button className="btn primary" disabled={busy}>
-          Crear organización
-        </button>
-      </form>
-      <p className="helper">
-        Crear una organización no concede acceso automáticamente a otras
-        cuentas. Las invitaciones de trabajadores siguen asignándose por evento.
-      </p>
+      <div className="organizations-layout">
+        <section className="section-stack">
+          <div className="section-title">
+            <h2>Tus organizaciones</h2>
+            <span className="count-pill">{data.organizations.length}</span>
+          </div>
+          {data.organizations.length === 0 && (
+            <section className="panel">
+              <Empty>
+                Crea tu primera organización para empezar a preparar eventos.
+              </Empty>
+            </section>
+          )}
+          {data.organizations.map((o) => (
+            <form
+              className="panel organization-card"
+              key={o.id}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void run(
+                  {
+                    action: "organization_save",
+                    organization_id: o.id,
+                    ...Object.fromEntries(new FormData(e.currentTarget)),
+                  },
+                  "Organización actualizada",
+                );
+              }}
+            >
+              <div className="organization-heading">
+                <span className="section-icon">
+                  <Building2 />
+                </span>
+                <div>
+                  <h3>{o.name}</h3>
+                  <p className="organization-meta">
+                    <CalendarDays size={14} />
+                    {
+                      data.events.filter((e) => e.organization_id === o.id)
+                        .length
+                    }{" "}
+                    eventos registrados
+                  </p>
+                </div>
+              </div>
+              <Field
+                name="name"
+                label={`Nombre de ${o.name}`}
+                defaultValue={o.name}
+              />
+              <section
+                className="organization-admins"
+                aria-label={`Administradores de ${o.name}`}
+              >
+                <h4>
+                  <Users size={16} />
+                  Administradores de la organización
+                </h4>
+                {data.members.filter((m) => m.organization_id === o.id)
+                  .length === 0 ? (
+                  <p className="helper">
+                    No hay administradores asignados a esta organización. El
+                    administrador global conserva su acceso general.
+                  </p>
+                ) : (
+                  <ul>
+                    {data.members
+                      .filter((m) => m.organization_id === o.id)
+                      .map((m) => {
+                        const person = data.people.find(
+                          (p) => p.id === m.user_id,
+                        );
+                        return (
+                          <li key={m.user_id}>
+                            <span
+                              className="organization-admin-avatar"
+                              aria-hidden="true"
+                            >
+                              {person?.name?.slice(0, 1).toUpperCase() || "A"}
+                            </span>
+                            <div>
+                              <strong>
+                                {person?.name || "Cuenta no disponible"}
+                              </strong>
+                              <span className="organization-admin-email">
+                                <Mail size={13} />
+                                {person?.email || "Correo no disponible"}
+                              </span>
+                            </div>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                )}
+              </section>
+              <div className="form-actions">
+                <button className="btn primary" disabled={busy}>
+                  <Save />
+                  Guardar organización
+                </button>
+              </div>
+            </form>
+          ))}
+        </section>
+        <aside className="section-stack organization-create">
+          <form
+            className="panel"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void run(
+                {
+                  action: "organization_save",
+                  ...Object.fromEntries(new FormData(e.currentTarget)),
+                },
+                "Organización creada",
+              );
+            }}
+          >
+            <div className="organization-heading">
+              <span className="section-icon violet">
+                <Plus />
+              </span>
+              <div>
+                <h2>Nueva organización</h2>
+                <p className="helper">Dale un nombre a tu próximo proyecto.</p>
+              </div>
+            </div>
+            <Field
+              name="name"
+              label="Nombre de la nueva organización"
+              placeholder="Ej. Producciones del Caribe"
+            />
+            <div className="form-actions">
+              <button className="btn primary" disabled={busy}>
+                <Plus />
+                Crear organización
+              </button>
+            </div>
+          </form>
+          <div className="information-card">
+            <Building2 size={20} />
+            <h3>Un espacio para cada equipo</h3>
+            <p>
+              Al crear un evento podrás elegir su organización. Crear una
+              organización no concede acceso a otras cuentas: los trabajadores
+              se invitan desde Equipo y usuarios.
+            </p>
+          </div>
+        </aside>
+      </div>
     </>
   );
 }

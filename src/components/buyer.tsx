@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   Ticket,
@@ -20,11 +21,15 @@ import { EventGallery } from "./event-editing";
 import { AttendeeFields, attendeeItems } from "./attendee-fields";
 import type { Attendee } from "@/lib/demographics";
 import { PaperTickets, PrintOptions, usePrintSettings } from "./print-options";
-import { PAPER_SIZES } from "@/lib/print-settings";
+import { browserId } from "@/lib/browser-id";
+import {
+  PreprintActionDialog,
+  type PreprintActionTarget,
+} from "./preprint-actions";
 export function EventPurchase({ slug }: { slug: string }) {
   const { data, run, busy, navigate } = useApp();
   const [quantities, setQuantities] = useState<Record<string, number>>({}),
-    [key] = useState(() => crypto.randomUUID());
+    [key] = useState(() => browserId());
   const [people, setPeople] = useState<Record<string, Attendee>>({}),
     [consent, setConsent] = useState(false);
   const [gift, setGift] = useState(false);
@@ -41,7 +46,8 @@ export function EventPurchase({ slug }: { slug: string }) {
           ["web", "both"].includes(p.channel) &&
           p.active &&
           new Date(p.starts_at) <= new Date() &&
-          new Date(p.ends_at) > new Date(),
+          (!(p.ends_at ?? p.effective_ends_at) ||
+            new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
       ),
     })),
     total = prices.reduce(
@@ -51,10 +57,10 @@ export function EventPurchase({ slug }: { slug: string }) {
   return (
     <>
       <div className="buttons" style={{ marginBottom: 22 }}>
-        <a className="link" href="/events">
+        <Link className="link" href="/events">
           <ArrowLeft size={13} style={{ display: "inline" }} /> Todos los
           eventos
-        </a>
+        </Link>
       </div>
       <div className="split event-detail">
         <section>
@@ -99,7 +105,10 @@ export function EventPurchase({ slug }: { slug: string }) {
           <div className="eyebrow">Tu lugar te espera</div>
           <h2>Elige tus entradas</h2>
           <p className="helper">
-            {e.available} cupos disponibles · precios en COP
+            {e.available === null
+              ? "Sin límite de aforo total"
+              : `${e.available} cupos disponibles`}{" "}
+            · precios en COP
           </p>
           <p className="notice">
             {e.minimum_age > 0
@@ -145,13 +154,13 @@ export function EventPurchase({ slug }: { slug: string }) {
             servidor.
           </p>
           {!data.actor ? (
-            <a
+            <Link
               className="btn primary"
               style={{ width: "100%", marginTop: 25 }}
               href="/login"
             >
               Inicia sesión para comprar
-            </a>
+            </Link>
           ) : (
             <form
               style={{ marginTop: 23 }}
@@ -317,9 +326,9 @@ export function Checkout({ orderId }: { orderId: string | null }) {
         <Empty>
           Inicia sesión con la cuenta del comprador para consultar esta orden.
         </Empty>
-        <a href="/login" className="btn primary">
+        <Link href="/login" className="btn primary">
           Iniciar sesión
-        </a>
+        </Link>
       </>
     );
   const expired =
@@ -392,13 +401,13 @@ export function Checkout({ orderId }: { orderId: string | null }) {
         )}
         <div className="form-actions">
           {confirmed ? (
-            <a
+            <Link
               className="btn primary"
               href={o.is_gift ? "/account/tickets" : `/tickets/${o.id}`}
             >
               <Ticket />
               {o.is_gift ? "Consultar regalo" : "Ver mis entradas"}
-            </a>
+            </Link>
           ) : o.status === "pending_payment" && !expired ? (
             data.demo ? (
               <button
@@ -439,8 +448,17 @@ export function Checkout({ orderId }: { orderId: string | null }) {
     </>
   );
 }
-export function Tickets({ orderId }: { orderId: string }) {
-  const { data, run, notify } = useApp();
+export function Tickets({
+  orderId,
+  preprinted = false,
+}: {
+  orderId: string;
+  preprinted?: boolean;
+}) {
+  const { data, run, notify, navigate } = useApp();
+  const [manageTarget, setManageTarget] = useState<PreprintActionTarget | null>(
+    null,
+  );
   const [printSettings, updatePrintSettings] = usePrintSettings();
   const [doc, setDoc] = useState<Row | null>(null),
     [error, setError] = useState(""),
@@ -448,13 +466,23 @@ export function Tickets({ orderId }: { orderId: string }) {
     [shareFile, setShareFile] = useState<File | null>(null),
     [sharing, setSharing] = useState(false),
     [shareHelp, setShareHelp] = useState(false),
-    [printJobs, setPrintJobs] = useState<Row[]>([]);
+    [printJobs, setPrintJobs] = useState<Row[]>([]),
+    [printSource, setPrintSource] = useState<"browser" | "qz">("browser"),
+    [resolvingPrint, setResolvingPrint] = useState(false);
+  const [selectedTicketIds, setSelectedTicketIds] = useState<string[] | null>(
+    null,
+  );
+  const selectedTickets: Row[] =
+    doc?.tickets.filter(
+      (t: Row) =>
+        selectedTicketIds === null || selectedTicketIds.includes(t.id),
+    ) ?? [];
   async function request(format = "json") {
-    return fetch("/api/tickets", {
+    return fetch(preprinted ? "/api/preprints" : "/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        order_id: orderId,
+        ...(preprinted ? { batch_id: orderId } : { order_id: orderId }),
         share: location.hash.slice(1) || undefined,
         format,
       }),
@@ -462,11 +490,11 @@ export function Tickets({ orderId }: { orderId: string }) {
   }
   useEffect(() => {
     let active = true;
-    fetch("/api/tickets", {
+    fetch(preprinted ? "/api/preprints" : "/api/tickets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        order_id: orderId,
+        ...(preprinted ? { batch_id: orderId } : { order_id: orderId }),
         share: location.hash.slice(1) || undefined,
         format: "json",
       }),
@@ -474,7 +502,10 @@ export function Tickets({ orderId }: { orderId: string }) {
       .then(async (r) => {
         const b = await r.json();
         if (!r.ok) throw new Error(b.error);
-        if (active) setDoc(b);
+        if (active) {
+          setDoc(b);
+          setSelectedTicketIds(null);
+        }
       })
       .catch((e) => {
         if (active) setError(e.message);
@@ -482,7 +513,7 @@ export function Tickets({ orderId }: { orderId: string }) {
     return () => {
       active = false;
     };
-  }, [orderId]);
+  }, [orderId, preprinted]);
   async function pdf() {
     try {
       const res = await request("pdf");
@@ -498,7 +529,7 @@ export function Tickets({ orderId }: { orderId: string }) {
     }
   }
   useEffect(() => {
-    if (!doc) return;
+    if (!doc || preprinted) return;
     let active = true;
     fetch("/api/tickets", {
       method: "POST",
@@ -522,7 +553,7 @@ export function Tickets({ orderId }: { orderId: string }) {
     return () => {
       active = false;
     };
-  }, [doc, orderId]);
+  }, [doc, orderId, preprinted]);
   async function sharePdf() {
     if (!shareFile || !doc) return;
     if (!navigator.canShare?.({ files: [shareFile] }) || !navigator.share) {
@@ -551,34 +582,68 @@ export function Tickets({ orderId }: { orderId: string }) {
     }
   }
   async function print(qz = false) {
-    if (!doc) return;
+    if (
+      !doc ||
+      printing ||
+      printJobs.length ||
+      resolvingPrint ||
+      !selectedTickets.length
+    )
+      return;
+    setPrintSource(qz ? "qz" : "browser");
     setPrinting(true);
     const jobs: Row[] = [];
     try {
-      for (const t of doc.tickets) {
-        const job = await run({ action: "print_request", ticket_id: t.id }, "");
-        if (!job) throw new Error("No se pudo registrar la impresión");
-        jobs.push(job);
-      }
+      const registered = await run(
+        {
+          action: preprinted ? "preprint_print_request" : "print_batch_request",
+          ticket_ids: selectedTickets.map((t: Row) => t.id),
+        },
+        "",
+      );
+      if (!registered) throw new Error("No se pudo registrar la impresión");
+      jobs.push(...registered.jobs);
       if (qz) {
         const { QZTrayAdapter } = await import("@/lib/printer");
-        await new QZTrayAdapter().print(doc.tickets, doc.event, printSettings);
-      } else window.print();
-      for (const job of jobs)
-        await run(
-          { action: "print_result", job_id: job.job_id, status: "submitted" },
-          "",
+        await new QZTrayAdapter().print(
+          selectedTickets,
+          doc.event,
+          printSettings,
         );
-      setPrintJobs(jobs);
-      notify(
-        "Solicitud de impresión enviada. Confirma el resultado físico en el papel.",
-      );
+        for (const job of jobs) {
+          const result = await run(
+            {
+              action: preprinted ? "preprint_print_result" : "print_result",
+              job_id: job.job_id,
+              status: "submitted",
+            },
+            "",
+          );
+          if (!result)
+            throw new Error(
+              "No se pudo registrar el envío a QZ Tray. Revisa el trabajo antes de reintentar.",
+            );
+        }
+        setPrintJobs(jobs);
+        notify("Trabajo enviado a QZ Tray. Falta verificar el papel.");
+      } else {
+        setPrintJobs(jobs);
+        window.print();
+        notify(
+          "El navegador no informa si imprimiste o cancelaste. Indica el resultado.",
+        );
+      }
     } catch (e) {
       for (const job of jobs)
         await run(
-          { action: "print_result", job_id: job.job_id, status: "failed" },
+          {
+            action: preprinted ? "preprint_print_result" : "print_result",
+            job_id: job.job_id,
+            status: "failed",
+          },
           "",
         );
+      setPrintJobs([]);
       notify((e as Error).message, true);
     } finally {
       setPrinting(false);
@@ -587,46 +652,172 @@ export function Tickets({ orderId }: { orderId: string }) {
   if (error)
     return (
       <>
-        <Heading title="Tus entradas" />
+        <Heading title={preprinted ? "Boletas preimpresas" : "Tus entradas"} />
         <div className="notice error">{error}</div>
-        <a href="/account/tickets" className="btn">
-          Mis entradas
-        </a>
+        <Link
+          href={preprinted ? "/box-office/preprints" : "/account/tickets"}
+          className="btn"
+        >
+          {preprinted ? "Volver al inventario" : "Mis entradas"}
+        </Link>
       </>
     );
   if (!doc) return <Empty>Preparando tus entradas…</Empty>;
   if (!doc.tickets.length)
     return (
       <>
-        <Heading title="Estas entradas no están disponibles a tu nombre" />
+        <Heading
+          title={
+            preprinted
+              ? "Este lote no tiene boletas sin activar"
+              : "Estas entradas no están disponibles a tu nombre"
+          }
+        />
         <div className="notice">
-          Pueden estar pendientes de aceptación, transferidas o regaladas.
-          Consulta su estado en Mis entradas; solo se muestran los QR que
-          corresponden a tu titularidad.
+          {preprinted
+            ? "Las boletas vendidas se consultan en su orden; las bloqueadas no se pueden reutilizar."
+            : "Pueden estar pendientes de aceptación, transferidas o regaladas."}
+          {!preprinted &&
+            "Consulta su estado en Mis entradas; solo se muestran los QR que corresponden a tu titularidad."}
         </div>
-        <a href="/account/tickets" className="btn">
-          Ver Mis entradas
-        </a>
+        <Link
+          href={preprinted ? "/box-office/preprints" : "/account/tickets"}
+          className="btn"
+        >
+          {preprinted ? "Volver al inventario" : "Ver Mis entradas"}
+        </Link>
       </>
     );
   const canPrint = data.permissions.sell.includes(doc.event.id);
   return (
     <>
       <Heading
-        title="Tu pase a una gran noche"
-        subtitle={`${doc.event.title} · orden ${orderId.slice(0, 8).toUpperCase()}`}
+        title={
+          preprinted
+            ? "Boletas preimpresas sin activar"
+            : "Tu pase a una gran noche"
+        }
+        subtitle={`${doc.event.title} · ${preprinted ? doc.batch_name : `orden ${orderId.slice(0, 8).toUpperCase()}`}`}
         action={
-          <a href="/account/tickets" className="btn">
-            Mis entradas
-          </a>
+          <Link
+            href={
+              preprinted
+                ? `/box-office/preprints?event=${doc.event.id}`
+                : "/account/tickets"
+            }
+            className="btn"
+          >
+            {preprinted ? "Volver al inventario" : "Mis entradas"}
+          </Link>
         }
       />
+      {preprinted && data.permissions.manage.includes(doc.event.id) && (
+        <section
+          className="panel no-print"
+          style={{ marginBottom: 20 }}
+          aria-label="Administrar lote preimpreso"
+        >
+          <h3>Administrar este lote</h3>
+          <p className="helper">
+            Desactiva o elimina todo el lote, o usa los botones debajo de cada
+            boleta para cambiar solo esa. Las ventas existentes se conservan.
+          </p>
+          <div className="buttons">
+            <button
+              className="btn danger"
+              disabled={printing || resolvingPrint || printJobs.length > 0}
+              onClick={() =>
+                setManageTarget({
+                  eventId: doc.event.id,
+                  batchId: orderId,
+                  name: doc.batch_name,
+                  operation: "deactivate",
+                })
+              }
+            >
+              Desactivar lote
+            </button>
+            <button
+              className="btn danger"
+              disabled={
+                printing ||
+                resolvingPrint ||
+                printJobs.length > 0 ||
+                !doc.can_delete_batch
+              }
+              onClick={() =>
+                setManageTarget({
+                  eventId: doc.event.id,
+                  batchId: orderId,
+                  name: doc.batch_name,
+                  operation: "delete",
+                })
+              }
+            >
+              Eliminar lote
+            </button>
+          </div>
+          {!doc.can_delete_batch && (
+            <p className="helper">
+              Este lote contiene ventas. Puedes eliminar sus boletas pendientes
+              individualmente.
+            </p>
+          )}
+        </section>
+      )}
+      {manageTarget && (
+        <PreprintActionDialog
+          target={manageTarget}
+          onClose={() => setManageTarget(null)}
+          onDone={() => {
+            setManageTarget(null);
+            navigate(`/box-office/preprints?event=${doc.event.id}`);
+          }}
+        />
+      )}
       {canPrint && (
         <PrintOptions
           settings={printSettings}
           update={updatePrintSettings}
-          disabled={printing}
+          disabled={printing || resolvingPrint || printJobs.length > 0}
         />
+      )}
+      {canPrint && (
+        <section
+          className="panel no-print"
+          style={{ marginBottom: 20 }}
+          aria-label="Seleccionar entradas para imprimir"
+        >
+          <h3>¿Qué entradas quieres imprimir?</h3>
+          <p role="status">
+            {selectedTickets.length} de {doc.tickets.length} seleccionadas
+            {printSettings.paper === "ticket70x40"
+              ? ` · ${selectedTickets.length * 2} tramos de papel`
+              : ""}
+          </p>
+          <div className="buttons">
+            <button
+              className="btn"
+              disabled={printing || resolvingPrint || printJobs.length > 0}
+              onClick={() => setSelectedTicketIds(null)}
+            >
+              Seleccionar todas
+            </button>
+            <button
+              className="btn"
+              disabled={printing || resolvingPrint || printJobs.length > 0}
+              onClick={() => setSelectedTicketIds([])}
+            >
+              Quitar selección
+            </button>
+          </div>
+          <p className="helper">
+            Marca las casillas debajo de las boletas. La selección solo afecta
+            la impresión; el PDF y el archivo compartido conservan todas las
+            entradas. El consecutivo es único por evento y no cambia al
+            reimprimir.
+          </p>
+        </section>
       )}
       <div className="buttons">
         <button className="btn primary" onClick={pdf}>
@@ -635,15 +826,31 @@ export function Tickets({ orderId }: { orderId: string }) {
         </button>
         {canPrint && (
           <>
-            <button className="btn" onClick={() => print()} disabled={printing}>
+            <button
+              className="btn"
+              onClick={() => print()}
+              disabled={
+                printing ||
+                resolvingPrint ||
+                printJobs.length > 0 ||
+                !selectedTickets.length
+              }
+            >
               <Printer />
-              Imprimir {PAPER_SIZES[printSettings.paper].label.toLowerCase()}
+              {printing
+                ? "Preparando impresión…"
+                : `Imprimir seleccionadas (${selectedTickets.length})`}
             </button>
             {process.env.NEXT_PUBLIC_QZ_PRINTER && (
               <button
                 className="btn"
                 onClick={() => print(true)}
-                disabled={printing}
+                disabled={
+                  printing ||
+                  resolvingPrint ||
+                  printJobs.length > 0 ||
+                  !selectedTickets.length
+                }
               >
                 <Printer />
                 {printSettings.paper === "receipt80"
@@ -653,18 +860,20 @@ export function Tickets({ orderId }: { orderId: string }) {
             )}
           </>
         )}
-        <button
-          className="btn"
-          onClick={sharePdf}
-          disabled={!shareFile || sharing}
-        >
-          <Share2 />
-          {sharing
-            ? "Compartiendo…"
-            : !shareFile
-              ? "Preparando PDF para compartir…"
-              : "Compartir PDF por WhatsApp"}
-        </button>
+        {!preprinted && (
+          <button
+            className="btn"
+            onClick={sharePdf}
+            disabled={!shareFile || sharing}
+          >
+            <Share2 />
+            {sharing
+              ? "Compartiendo…"
+              : !shareFile
+                ? "Preparando PDF para compartir…"
+                : "Compartir PDF por WhatsApp"}
+          </button>
+        )}
       </div>
       {shareHelp && (
         <div className="notice" style={{ marginTop: 16 }}>
@@ -686,59 +895,24 @@ export function Tickets({ orderId }: { orderId: string }) {
           </button>
         </div>
       )}
-      <div className="notice" style={{ marginTop: 20 }}>
-        Cada QR admite un solo ingreso. El enlace compartido permite ver tus
-        entradas: entrégalo únicamente a la persona que las usará.
-      </div>
-      <div className="ticket-sheet">
-        {doc.tickets.map((t: Row) => (
-          <article className="ticket" key={t.id}>
-            <div className="ticket-brand">Pase Central · Vive el momento</div>
-            <h3>{doc.event.title}</h3>
-            <p style={{ fontSize: 11 }}>
-              {when(doc.event.starts_at)} · Colombia
-            </p>
-            <p style={{ fontSize: 11 }}>{doc.event.venue_name}</p>
-            <div style={{ margin: "12px 0" }}>
-              <b>{t.type_name}</b> · <Badge status={t.status} />
-            </div>
-            <img src={t.qr} alt={`QR de ${t.visible_number}`} />
-            <div className="number">{t.visible_number}</div>
-            <small>Serial: {t.security_serial}</small>
-            <small style={{ marginTop: 16 }}>
-              Un ingreso por entrada. No publiques tu QR.
-              <br />
-              Entrada de acceso. No es documento fiscal.
-            </small>
-          </article>
-        ))}
-      </div>
-      {canPrint && (
-        <PaperTickets
-          tickets={doc.tickets}
-          event={doc.event}
-          settings={printSettings}
-        />
-      )}
-      {canPrint && (
-        <p className="helper no-print">
-          El diálogo de impresión no confirma que salió papel. Verifica
-          impresora, tamaño de papel seleccionado y legibilidad del QR. Las
-          reimpresiones conservan los identificadores.
-        </p>
-      )}
       {printJobs.length > 0 && (
-        <section className="panel no-print">
-          <h3>Verifica la impresión física</h3>
+        <section
+          className="panel no-print"
+          style={{ marginTop: 20, marginBottom: 20 }}
+        >
+          <h3>¿Qué ocurrió con la impresión?</h3>
           <p>
-            Registra el resultado después de revisar el papel. Un trabajo
-            enviado no garantiza impresión.
+            {printSource === "browser"
+              ? "Abrir o cerrar el diálogo no confirma un envío. Si cancelaste, elige No se imprimió / cancelé."
+              : "QZ Tray recibió el trabajo, pero todavía debes revisar el papel."}
+            Confirma el resultado para poder solicitar otra impresión.
           </p>
           <div className="buttons" style={{ marginTop: 16 }}>
             {(["confirmed", "failed"] as const).map((status) => (
               <button
                 className={`btn ${status === "confirmed" ? "primary" : "danger"}`}
                 key={status}
+                disabled={resolvingPrint || printing}
                 onClick={async () => {
                   if (
                     !confirm(
@@ -748,22 +922,86 @@ export function Tickets({ orderId }: { orderId: string }) {
                     )
                   )
                     return;
-                  for (const job of printJobs)
-                    await run(
-                      { action: "print_result", job_id: job.job_id, status },
-                      "",
+                  setResolvingPrint(true);
+                  try {
+                    for (const job of printJobs) {
+                      const result = await run(
+                        {
+                          action: preprinted
+                            ? "preprint_print_result"
+                            : "print_result",
+                          job_id: job.job_id,
+                          status,
+                        },
+                        "",
+                      );
+                      if (!result) return;
+                      setPrintJobs((current) =>
+                        current.filter((j) => j.job_id !== job.job_id),
+                      );
+                    }
+                    notify(
+                      status === "confirmed"
+                        ? "Impresión física verificada."
+                        : "Registrado: no se imprimió o se canceló.",
                     );
-                  setPrintJobs([]);
-                  notify("Resultado físico registrado");
+                  } finally {
+                    setResolvingPrint(false);
+                  }
                 }}
               >
                 {status === "confirmed"
                   ? "Papel impreso y verificado"
-                  : "La impresión falló"}
+                  : "No se imprimió / cancelé"}
               </button>
             ))}
           </div>
         </section>
+      )}
+      <div className="notice" style={{ marginTop: 20 }}>
+        {preprinted
+          ? "Estas boletas NO permiten ingresar hasta confirmar su venta en Activar venta. No entregues el lote ni compartas sus QR con clientes antes de venderlo. Cada entrada activa permite un ingreso."
+          : "Cada QR admite un solo ingreso. El enlace compartido permite ver tus entradas: entrégalo únicamente a la persona que las usará."}
+      </div>
+      <PaperTickets
+        tickets={doc.tickets}
+        onManage={
+          preprinted && data.permissions.manage.includes(doc.event.id)
+            ? (t, operation) =>
+                setManageTarget({
+                  eventId: doc.event.id,
+                  batchId: orderId,
+                  ticketId: t.id,
+                  name: t.visible_number,
+                  operation,
+                })
+            : undefined
+        }
+        printTickets={canPrint ? selectedTickets : doc.tickets}
+        selectedIds={
+          canPrint ? selectedTickets.map((t: Row) => t.id) : undefined
+        }
+        onToggle={
+          canPrint
+            ? (id) =>
+                setSelectedTicketIds((current) => {
+                  const ids = current ?? doc.tickets.map((t: Row) => t.id);
+                  return ids.includes(id)
+                    ? ids.filter((value: string) => value !== id)
+                    : [...ids, id];
+                })
+            : undefined
+        }
+        selectionDisabled={printing || resolvingPrint || printJobs.length > 0}
+        event={doc.event}
+        settings={printSettings}
+      />
+      {canPrint && (
+        <p className="helper no-print">
+          El diálogo de impresión no confirma que salió papel. Verifica
+          impresora, tamaño de papel seleccionado y legibilidad del QR. Las
+          reimpresiones conservan los identificadores.
+        </p>
       )}
     </>
   );

@@ -2,6 +2,51 @@ export const auditOperations: Record<
   string,
   { label: string; description: string }
 > = {
+  preprint_deleted: {
+    label: "Boletas preimpresas eliminadas",
+    description:
+      "Eliminó inventario sin venta y sus credenciales; mantiene auditoría, historial de impresión y consecutivos sin reutilizar. No elimina ventas.",
+  },
+  preprint_batch_created: {
+    label: "Lote preimpreso creado",
+    description:
+      "Apartó cupos y consecutivos para papel sin activar, con precio fijo. No registra una venta ni un pago.",
+  },
+  preprint_assigned: {
+    label: "Responsable de lote actualizado",
+    description:
+      "El gestor asignó o reasignó un lote a personal autorizado de taquilla.",
+  },
+  preprint_activated: {
+    label: "Boleta preimpresa vendida y activada",
+    description:
+      "Confirmó cobro, orden y entrada conservando el QR impreso. No registra ingreso.",
+  },
+  preprint_blocked: {
+    label: "Boletas sin activar bloqueadas",
+    description:
+      "Inutilizó QR pendientes de un lote y liberó cupo, sin afectar ventas confirmadas.",
+  },
+  preprint_print_requested: {
+    label: "Impresión de preimpresas solicitada",
+    description:
+      "Registró una solicitud de impresión del inventario sin activar. No prueba salida física.",
+  },
+  preprint_print_result: {
+    label: "Resultado de impresión de preimpresas",
+    description:
+      "Registró envío, fallo o confirmación manual del papel del lote; no activa las entradas.",
+  },
+  ticket_art_updated: {
+    label: "Diseño de boletas actualizado",
+    description:
+      "El gestor cambió el arte monocromático y su frase para las próximas descargas y reimpresiones del evento.",
+  },
+  ticket_art_removed: {
+    label: "Diseño de boletas retirado",
+    description:
+      "El gestor retiró el arte; las boletas muestran el nombre del evento como alternativa.",
+  },
   team_permissions_updated: {
     label: "Permisos de equipo editados",
     description:
@@ -264,6 +309,9 @@ export const auditOperations: Record<
   },
 };
 export const auditEntities: Record<string, string> = {
+  preprint_batch: "Lote de boletas preimpresas",
+  preprinted_ticket: "Boleta preimpresa",
+  preprint_print_job: "Impresión de boletas preimpresas",
   ticket_transfer: "Regalo o transferencia",
   event: "Evento",
   order: "Orden de compra",

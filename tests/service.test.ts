@@ -1264,6 +1264,10 @@ describe("Validación online y documentos", () => {
       ticket_id: doc.tickets[0].id,
     });
     expect((await one(db, "SELECT count(*)::int AS n FROM tickets")).n).toBe(1);
+    expect(doc.tickets[0].event_sequence).toBe(1);
+    expect(
+      (await ticketDocument(db, box, r.order_id)).tickets[0].event_sequence,
+    ).toBe(1);
     expect(
       (
         await one(
@@ -1275,6 +1279,73 @@ describe("Validación online y documentos", () => {
     expect(
       (await ticketDocument(db, box, r.order_id)).tickets[0].credential,
     ).toBe(doc.tickets[0].credential);
+  });
+  it("registra un lote de impresión completo, audita cada entrada y rechaza lotes sin permiso", async () => {
+    const sale = await sell(3);
+    const ids = (await ticketDocument(db, box, sale.order_id)).tickets.map(
+      (t) => t.id,
+    );
+    const requested = await execute(db, box, {
+      action: "print_batch_request",
+      ticket_ids: ids,
+    });
+    expect(requested.jobs).toHaveLength(3);
+    expect(
+      new Set(requested.jobs.map((j: { job_id: string }) => j.job_id)).size,
+    ).toBe(3);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM print_jobs WHERE status='requested' AND NOT is_reprint",
+        )
+      ).n,
+    ).toBe(3);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM audit_logs WHERE action='ticket_print'",
+        )
+      ).n,
+    ).toBe(3);
+    await execute(db, box, { action: "print_batch_request", ticket_ids: ids });
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM print_jobs WHERE is_reprint",
+        )
+      ).n,
+    ).toBe(3);
+    for (const ticket_ids of [
+      [...ids, randomUUID()],
+      [ids[0], ids[0]],
+    ]) {
+      await expect(
+        execute(db, box, { action: "print_batch_request", ticket_ids }),
+      ).rejects.toThrow();
+    }
+    await expect(
+      execute(db, customer, { action: "print_batch_request", ticket_ids: ids }),
+    ).rejects.toThrow();
+    const other = await sell(1, e2);
+    const otherId = (await ticketDocument(db, box, other.order_id)).tickets[0]
+      .id;
+    await db.query("DELETE FROM event_staff WHERE user_id=$1 AND event_id=$2", [
+      box.id,
+      e2,
+    ]);
+    await expect(
+      execute(db, box, {
+        action: "print_batch_request",
+        ticket_ids: [ids[0], otherId],
+      }),
+    ).rejects.toThrow();
+    expect((await one(db, "SELECT count(*)::int AS n FROM print_jobs")).n).toBe(
+      6,
+    );
+    expect((await one(db, "SELECT count(*)::int AS n FROM tickets")).n).toBe(4);
   });
   it("documento PDF válido y enlace compartido revocable", async () => {
     const r = await sell(),

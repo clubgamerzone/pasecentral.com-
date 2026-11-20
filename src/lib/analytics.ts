@@ -152,10 +152,11 @@ export function buildAnalytics(
           )
           .map((o) => o.id),
       );
-      const committed = sum(
-        d.items.filter((i) => committedIds.has(i.order_id)),
-        "quantity",
-      );
+      const committed =
+        sum(
+          d.items.filter((i) => committedIds.has(i.order_id)),
+          "quantity",
+        ) + (e.preprinted_reserved ?? 0);
       const gross = sum(paid, "total_cop"),
         ref = sum(
           refunds.filter((r) => ids.has(r.order_id)),
@@ -178,9 +179,11 @@ export function buildAnalytics(
         net_cop: gross - ref,
         used: ownTickets.filter((t) => t.used_at || t.status === "used").length,
         capacity: e.capacity,
-        available: Math.max(0, e.capacity - committed),
+        preprinted_reserved: e.preprinted_reserved ?? 0,
+        available:
+          e.capacity === null ? null : Math.max(0, e.capacity - committed),
         committed,
-        occupancy: percent(committed, e.capacity),
+        occupancy: e.capacity === null ? null : percent(committed, e.capacity),
       };
     })
     .sort(
@@ -407,7 +410,9 @@ export function buildAnalytics(
         : 0,
       used: admitted.length,
       attendance_percent: percent(admitted.length, admissionDenominator),
-      available: eventRows.reduce((n, e) => n + e.available, 0),
+      available: eventRows.some((e) => e.capacity === null)
+        ? null
+        : eventRows.reduce((n, e) => n + (e.available ?? 0), 0),
       pending_orders: pending.length,
       pending_tickets: sum(
         d.items.filter((i) => pending.some((o) => o.id === i.order_id)),
@@ -447,7 +452,7 @@ export async function analytics(db: DB, a: Actor, input: unknown = {}) {
     ]);
     const managed = (
       await tx.query(
-        "SELECT id,title,starts_at,capacity,status FROM events WHERE app_private.can_event(id,'manage') ORDER BY starts_at",
+        "SELECT e.id,e.title,e.starts_at,e.capacity,e.status,(SELECT count(*)::int FROM preprinted_tickets p WHERE p.event_id=e.id AND p.status='stock') AS preprinted_reserved FROM events e WHERE app_private.can_event(e.id,'manage') ORDER BY e.starts_at",
       )
     ).rows;
     if (

@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
+  // Permit only the configured LAN hostname for development assets/HMR.
+  allowedDevOrigins:
+    process.env.NODE_ENV === "development" && process.env.APP_URL
+      ? [new URL(process.env.APP_URL).hostname]
+      : [],
   // Demo data and secrets must never enter serverless/standalone build artifacts.
   outputFileTracingExcludes: {
     "/*": [

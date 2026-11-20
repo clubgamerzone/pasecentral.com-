@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
 import { TeamEditor } from "./team-editor";
@@ -10,8 +11,15 @@ import {
   initialAnalyticsFilters,
 } from "./analytics";
 import { AttendeeFields, attendeeItems } from "./attendee-fields";
-import { EventSchedule, scheduleValues } from "./enhanced-fields";
+import {
+  EventCapacity,
+  EventSchedule,
+  TicketCapacity,
+  PhaseEnd,
+  scheduleValues,
+} from "./enhanced-fields";
 import { EditPhase } from "./phase-editing";
+import { OpenCashDialog } from "./cash-opening";
 import type { Attendee } from "@/lib/demographics";
 import { auditOperation, auditEntity } from "@/lib/audit-labels";
 import {
@@ -37,6 +45,7 @@ import {
   when,
 } from "./app";
 import type { Row } from "@/lib/db";
+import { browserId } from "@/lib/browser-id";
 export const formValues = (form: HTMLFormElement) =>
   Object.fromEntries(new FormData(form));
 const iso = (v: FormDataEntryValue) => new Date(`${v}:00-05:00`).toISOString();
@@ -66,7 +75,7 @@ export function EventEditor({
           <form
             onSubmit={async (ev) => {
               ev.preventDefault();
-              const b = formValues(ev.currentTarget);
+              const b: Row = formValues(ev.currentTarget);
               scheduleValues(b);
               const r = await run(
                 { action: "create_event", ...b },
@@ -86,17 +95,22 @@ export function EventEditor({
                 </select>
               </Field>
               <Field name="title" label="Nombre del evento" maxLength={300} />
-              <Field
-                name="slug"
-                label="Dirección corta (minúsculas y guiones)"
-                pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              />
-              <Field
-                name="capacity"
-                label="Aforo total"
-                type="number"
-                min={1}
-              />
+              <div>
+                <Field
+                  name="slug"
+                  label="Enlace del evento"
+                  placeholder="tuevento"
+                  maxLength={100}
+                  aria-describedby="event-link-example"
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                />
+                <p id="event-link-example" className="helper">
+                  Ejemplo: pasecentral.com/eventos/tuevento. Es el nombre del
+                  enlace, no la dirección del recinto. Usa minúsculas, números y
+                  guiones, sin espacios.
+                </p>
+              </div>
+              <EventCapacity />
               <Field name="venue_name" label="Nombre del recinto" />
               <Field name="address" label="Dirección" />
               <EventSchedule />
@@ -114,9 +128,9 @@ export function EventEditor({
                 <Plus />
                 Crear borrador
               </button>
-              <a href="/admin/events" className="btn">
+              <Link href="/admin/events" className="btn">
                 Cancelar
-              </a>
+              </Link>
             </div>
           </form>
         </section>
@@ -139,13 +153,13 @@ export function EventEditor({
           ["orders", "Ventas y entradas"],
           ["staff", "Equipo"],
         ].map(([key, label]) => (
-          <a
+          <Link
             key={key}
             href={`/admin/events/${eventId}${key === "settings" ? "" : `/${key}`}`}
             className={page === key ? "active" : ""}
           >
             {label}
-          </a>
+          </Link>
         ))}
       </nav>
       {page === "settings" ? (
@@ -242,25 +256,27 @@ export function EventEditor({
                   Cancelar evento
                 </button>
               )}
-              <a className="btn" href={`/admin/events/${eventId}/pricing`}>
+              <Link className="btn" href={`/admin/events/${eventId}/pricing`}>
                 Configurar precios
-              </a>
-              <a className="btn" href={`/events/${e.slug}`}>
+              </Link>
+              <Link className="btn" href={`/events/${e.slug}`}>
                 Ver página pública
-              </a>
+              </Link>
             </div>
           </section>
         </div>
       ) : page === "pricing" ? (
-        <div className="section-stack">
+        <div className="section-stack pricing-workspace">
           <section className="panel">
             <div className="panel-head">
               <h2>Localidades</h2>
               <span className="helper">
-                Comparten el aforo total de {e.capacity}
+                {e.capacity === null
+                  ? "Sin límite total del evento; cada localidad conserva su cupo"
+                  : `Comparten el aforo total de ${e.capacity}`}
               </span>
             </div>
-            <div className="table-wrap">
+            <div className={`table-wrap${types.length ? "" : " empty-table"}`}>
               <table>
                 <thead>
                   <tr>
@@ -272,12 +288,30 @@ export function EventEditor({
                   </tr>
                 </thead>
                 <tbody>
+                  {types.length === 0 && (
+                    <tr>
+                      <td colSpan={5}>
+                        <div className="table-empty">
+                          <Ticket size={24} />
+                          <strong>Aún no hay localidades</strong>
+                          <p>
+                            Agrega General, VIP u otra zona para empezar a
+                            configurar tus entradas.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {types.map((t) => (
                     <tr key={t.id}>
                       <td>{t.name}</td>
-                      <td>{t.capacity}</td>
+                      <td>{t.capacity ?? "Ilimitado"}</td>
                       <td>{t.committed}</td>
-                      <td>{Math.max(0, t.capacity - t.committed)}</td>
+                      <td>
+                        {t.capacity === null
+                          ? "Ilimitadas"
+                          : Math.max(0, t.capacity - t.committed)}
+                      </td>
                       <td>
                         <EditTicketType type={t} eventId={eventId} />
                       </td>
@@ -299,25 +333,30 @@ export function EventEditor({
                 )
                   f.reset();
               }}
-              className="form-grid"
-              style={{ marginTop: 23 }}
+              className="form-grid form-section locality-create"
             >
+              <div className="full form-section-heading">
+                <h3>Nueva localidad</h3>
+                <p className="helper">
+                  Define el nombre y cuántas entradas tendrá disponibles.
+                </p>
+              </div>
               <Field
                 name="name"
                 label="Nueva localidad"
                 placeholder="General o VIP"
               />
-              <Field
-                name="capacity"
+              <TicketCapacity
                 label="Cupo de la localidad"
-                type="number"
-                min={1}
-                max={e.capacity}
+                unlimitedAllowed={e.capacity === null}
+                maximum={e.capacity ?? 1000000}
               />
-              <button className="btn primary" disabled={busy}>
-                <Plus />
-                Agregar localidad
-              </button>
+              <div className="form-actions full">
+                <button className="btn primary" disabled={busy}>
+                  <Plus />
+                  Agregar localidad
+                </button>
+              </div>
             </form>
           </section>
           <section className="panel">
@@ -326,7 +365,7 @@ export function EventEditor({
               Las fases activas no pueden superponerse para la misma localidad y
               canal.
             </p>
-            <div className="table-wrap">
+            <div className={`table-wrap${phases.length ? "" : " empty-table"}`}>
               <table>
                 <thead>
                   <tr>
@@ -340,6 +379,20 @@ export function EventEditor({
                   </tr>
                 </thead>
                 <tbody>
+                  {phases.length === 0 && (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="table-empty">
+                          <strong>Aún no hay fases de precio</strong>
+                          <p>
+                            {types.length
+                              ? "Agrega una fase para definir el precio y su periodo de venta."
+                              : "Crea primero una localidad para configurar sus precios."}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
                   {phases.map((p) => (
                     <tr key={p.id}>
                       <td>
@@ -355,7 +408,21 @@ export function EventEditor({
                       </td>
                       <td>{money(p.price_cop)}</td>
                       <td>{when(p.starts_at)}</td>
-                      <td>{when(p.ends_at)}</td>
+                      <td>
+                        {p.ends_with_event ? (
+                          <>
+                            Hasta el final del evento
+                            {p.effective_ends_at && (
+                              <small className="helper">
+                                {" "}
+                                · {when(p.effective_ends_at)}
+                              </small>
+                            )}
+                          </>
+                        ) : (
+                          when(p.ends_at)
+                        )}
+                      </td>
                       <td>{p.active ? "Activa" : "Inactiva"}</td>
                       <td>
                         <EditPhase phase={p} eventId={eventId} />
@@ -381,15 +448,22 @@ export function EventEditor({
             </div>
             {types.length > 0 && (
               <form
-                style={{ marginTop: 25 }}
+                className="form-section"
                 onSubmit={async (ev) => {
                   ev.preventDefault();
-                  const b = formValues(ev.currentTarget);
+                  const b: Row = formValues(ev.currentTarget);
                   b.starts_at = iso(b.starts_at);
-                  b.ends_at = iso(b.ends_at);
+                  b.ends_at = b.ends_with_event ? null : iso(b.ends_at);
                   await run({ action: "add_phase", event_id: eventId, ...b });
                 }}
               >
+                <div className="form-section-heading">
+                  <h3>Nueva fase de precio</h3>
+                  <p className="helper">
+                    Elige la localidad, el canal y el periodo en que se aplicará
+                    este precio.
+                  </p>
+                </div>
                 <div className="form-grid">
                   <Field name="ticket_type_id" label="Localidad">
                     <select id="ticket_type_id" name="ticket_type_id">
@@ -424,12 +498,7 @@ export function EventEditor({
                     type="datetime-local"
                     value={local(new Date())}
                   />
-                  <Field
-                    name="ends_at"
-                    label="Fin · Colombia"
-                    type="datetime-local"
-                    value={local(e.ends_at)}
-                  />
+                  <PhaseEnd event={e} />
                 </div>
                 <div className="form-actions">
                   <button className="btn primary" disabled={busy}>
@@ -637,12 +706,13 @@ export function UserManagement({ eventId }: { eventId?: string }) {
 }
 export function BoxOffice() {
   const { data, run, busy, navigate } = useApp();
+  const [openingCash, setOpeningCash] = useState(false);
   const [people, setPeople] = useState<Record<string, Attendee>>({}),
     [consent, setConsent] = useState(false);
   const [event, setEvent] = useState(data.permissions.sell[0] ?? ""),
     [method, setMethod] = useState("cash"),
     [quantities, setQuantities] = useState<Record<string, number>>({}),
-    [key, setKey] = useState(() => crypto.randomUUID());
+    [key, setKey] = useState(() => browserId());
   const e = data.events.find((e) => e.id === event),
     types = data.types.filter((t) => t.event_id === event && t.active),
     prices = types.map((t) => ({
@@ -653,7 +723,8 @@ export function BoxOffice() {
           ["box_office", "both"].includes(p.channel) &&
           p.active &&
           new Date(p.starts_at) <= new Date() &&
-          new Date(p.ends_at) > new Date(),
+          (!(p.ends_at ?? p.effective_ends_at) ||
+            new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
       ),
     })),
     total = prices.reduce(
@@ -684,7 +755,7 @@ export function BoxOffice() {
               onChange={(e) => {
                 setEvent(e.target.value);
                 setQuantities({});
-                setKey(crypto.randomUUID());
+                setKey(browserId());
               }}
             >
               {data.events
@@ -698,7 +769,10 @@ export function BoxOffice() {
           </Field>
           {e && (
             <p className="helper">
-              {e.available} lugares disponibles · {e.venue_name}
+              {e.available === null
+                ? "Sin límite de aforo total"
+                : `${e.available} lugares disponibles`}{" "}
+              · {e.venue_name}
               {e.minimum_age > 0
                 ? ` · Edad mínima: ${e.minimum_age} años`
                 : " · Todas las edades"}
@@ -716,7 +790,11 @@ export function BoxOffice() {
                       ? `${p.name} · ${money(p.price_cop)}`
                       : "Sin precio vigente"}
                 </p>
-                <p>{Math.max(0, t.capacity - t.committed)} disponibles</p>
+                <p>
+                  {t.capacity === null
+                    ? "Disponibilidad ilimitada"
+                    : `${Math.max(0, t.capacity - t.committed)} disponibles`}
+                </p>
               </div>
               <select
                 aria-label={`Cantidad ${t.name}`}
@@ -742,16 +820,33 @@ export function BoxOffice() {
           {method === "cash" && !session && (
             <div className="notice" style={{ marginTop: 18 }}>
               Abre tu caja para vender en efectivo.{" "}
-              <a className="link" href="/box-office/cash-session">
-                Ir a caja
-              </a>
+              <button
+                type="button"
+                className="btn small"
+                disabled={!e || busy}
+                onClick={() => setOpeningCash(true)}
+              >
+                Abrir caja
+              </button>
             </div>
+          )}
+          {method === "cash" && session && (
+            <p className="helper" role="status">
+              Caja abierta para este evento.
+            </p>
+          )}
+          {openingCash && e && (
+            <OpenCashDialog
+              key={e.id}
+              event={e}
+              onClose={() => setOpeningCash(false)}
+            />
           )}
           <form
             style={{ marginTop: 22 }}
             onSubmit={async (ev) => {
               ev.preventDefault();
-              const b = formValues(ev.currentTarget);
+              const b: Row = formValues(ev.currentTarget);
               const r = await run(
                 {
                   action: "sell",
@@ -766,7 +861,7 @@ export function BoxOffice() {
                 "Venta confirmada. Entradas emitidas.",
               );
               if (r) {
-                setKey(crypto.randomUUID());
+                setKey(browserId());
                 navigate(`/tickets/${r.order_id}`);
               }
             }}
@@ -1058,6 +1153,8 @@ export function Cash() {
   );
 }
 const resultNames: Record<string, string> = {
+  not_activated:
+    "Boleta sin activar: no autorices el ingreso. Debe venderse y activarse en taquilla",
   pending_transfer: "Entrada pendiente de aceptación de regalo o transferencia",
   accepted: "Ingreso autorizado",
   already_used: "Entrada ya utilizada",
@@ -1088,7 +1185,7 @@ export function Access() {
     setPopup(false);
     setResult(null);
     if (!pending.current || pending.current.credential !== value)
-      pending.current = { credential: value, request_id: crypto.randomUUID() };
+      pending.current = { credential: value, request_id: browserId() };
     const r = await run(
       {
         action: "scan_auto",
@@ -1288,7 +1385,7 @@ export function Access() {
                       action: "manual_checkin",
                       event_id: t.event_id,
                       ticket_id: t.id,
-                      request_id: crypto.randomUUID(),
+                      request_id: browserId(),
                       device_id: device,
                       gate_label: gate,
                       reason,

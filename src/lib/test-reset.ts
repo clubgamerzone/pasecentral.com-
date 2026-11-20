@@ -1,6 +1,10 @@
 import type { DB, Tx, Row } from "./db";
 import { audit, fail } from "./service";
 export const resetTables = [
+  "preprint_batch_deletions",
+  "preprint_print_jobs",
+  "preprinted_tickets",
+  "preprint_batches",
   "print_jobs",
   "check_in_attempts",
   "tickets",
@@ -16,6 +20,7 @@ export const resetTables = [
   "ticket_types",
   "event_staff",
   "event_images",
+  "event_ticket_art",
   "events",
   "payment_webhook_events",
 ] as const;
@@ -82,7 +87,7 @@ export async function resetTestData(
     );
     for (const table of resetTables) await tx.query(`DELETE FROM ${table}`);
     await tx.query(
-      "DELETE FROM audit_logs WHERE entity_type IN ('event','order','ticket','ticket_type','pricing_phase','cash_session','refund','print_job','checkin','payment')",
+      "DELETE FROM audit_logs WHERE entity_type IN ('event','order','ticket','ticket_type','pricing_phase','cash_session','refund','print_job','checkin','payment','preprint_batch','preprinted_ticket','preprint_print_job')",
     );
     await tx.query(
       "UPDATE organizations SET name='Pase Central' WHERE name='Pase Central · pruebas'",

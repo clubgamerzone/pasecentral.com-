@@ -4,6 +4,15 @@ const id = z.string().uuid();
 const money = z.coerce.number().int().min(0).max(100000000);
 const text = z.string().trim().min(1).max(300);
 const date = z.string().datetime({ offset: true });
+const eventCapacity = z.preprocess(
+  (value) => (value === "" || value === undefined ? null : value),
+  z.coerce.number().int().min(1).max(1000000).nullable(),
+);
+const typeCapacity = (minimum: number) =>
+  z.preprocess(
+    (value) => (value === "" || value === undefined ? null : value),
+    z.coerce.number().int().min(minimum).max(1000000).nullable(),
+  );
 const items = z
   .array(
     z.object({
@@ -64,7 +73,7 @@ export const commands = z.discriminatedUnion("action", [
     channel: z.enum(["web", "box_office", "both"]),
     price_cop: money,
     starts_at: date,
-    ends_at: date,
+    ends_at: date.nullable(),
   }),
   z.object({
     action: z.literal("update_event"),
@@ -74,10 +83,10 @@ export const commands = z.discriminatedUnion("action", [
     venue_name: text,
     address: text,
     starts_at: date,
-    ends_at: date,
+    ends_at: date.nullable().default(null),
     admission_starts_at: date,
-    admission_ends_at: date,
-    capacity: z.coerce.number().int().min(1).max(1000000),
+    admission_ends_at: date.nullable().default(null),
+    capacity: eventCapacity,
     minimum_age: z.coerce.number().int().min(0).max(100).default(18),
   }),
   z.object({
@@ -85,7 +94,7 @@ export const commands = z.discriminatedUnion("action", [
     event_id: id,
     ticket_type_id: id,
     name: text,
-    capacity: z.coerce.number().int().min(0).max(1000000),
+    capacity: typeCapacity(0),
   }),
   z.object({ action: z.literal("event_cover"), event_id: id, image_id: id }),
   z.object({
@@ -123,10 +132,10 @@ export const commands = z.discriminatedUnion("action", [
     venue_name: text,
     address: text,
     starts_at: date,
-    ends_at: date,
+    ends_at: date.nullable().default(null),
     admission_starts_at: date,
-    admission_ends_at: date,
-    capacity: z.coerce.number().int().min(1).max(1000000),
+    admission_ends_at: date.nullable().default(null),
+    capacity: eventCapacity,
     minimum_age: z.coerce.number().int().min(0).max(100).default(18),
   }),
   z.object({
@@ -144,7 +153,7 @@ export const commands = z.discriminatedUnion("action", [
     action: z.literal("add_type"),
     event_id: id,
     name: text,
-    capacity: z.coerce.number().int().positive().max(1000000),
+    capacity: typeCapacity(1),
   }),
   z.object({
     action: z.literal("add_phase"),
@@ -154,7 +163,7 @@ export const commands = z.discriminatedUnion("action", [
     channel: z.enum(["web", "box_office", "both"]),
     price_cop: money,
     starts_at: date,
-    ends_at: date,
+    ends_at: date.nullable(),
   }),
   z.object({
     action: z.literal("phase_active"),
@@ -290,8 +299,78 @@ export const commands = z.discriminatedUnion("action", [
     external_reference: text,
   }),
   z.object({ action: z.literal("resend"), order_id: id }),
+  z.object({
+    action: z.literal("preprint_create"),
+    event_id: id,
+    ticket_type_id: id,
+    phase_id: id,
+    name: z.string().trim().min(1).max(100),
+    quantity: z.coerce.number().int().min(1).max(100),
+    assigned_to: id.nullable().default(null),
+    idempotency_key: id,
+  }),
+  z.object({
+    action: z.literal("preprint_lookup"),
+    credential: z.string().trim().min(1).max(1000),
+  }),
+  z.object({
+    action: z.literal("preprint_activate"),
+    credential: z.string().trim().min(1).max(1000),
+    method: z.enum(["cash", "transfer"]),
+    reference: z.string().max(300).optional(),
+    verified: z.boolean().default(false),
+    buyer_name: z.string().max(300).optional(),
+    buyer_email: z.union([z.email().max(254), z.literal("")]).optional(),
+    buyer_phone: z.string().max(30).optional(),
+    idempotency_key: id,
+  }),
+  z.object({
+    action: z.literal("preprint_block"),
+    event_id: id,
+    batch_id: id,
+    ticket_id: id.optional(),
+    reason: text,
+  }),
+  z.object({
+    action: z.literal("preprint_assign"),
+    event_id: id,
+    batch_id: id,
+    assigned_to: id.nullable(),
+  }),
+  z.object({
+    action: z.literal("preprint_delete"),
+    event_id: id,
+    batch_id: id,
+    ticket_id: id.optional(),
+    reason: text,
+    confirmed: z.literal(true),
+  }),
+  z.object({
+    action: z.literal("preprint_print_request"),
+    ticket_ids: z
+      .array(id)
+      .min(1)
+      .max(100)
+      .refine((ids) => new Set(ids).size === ids.length, "Entradas repetidas"),
+  }),
+  z.object({
+    action: z.literal("preprint_print_result"),
+    job_id: id,
+    status: z.enum(["submitted", "confirmed", "failed"]),
+  }),
   z.object({ action: z.literal("revoke_share"), order_id: id }),
   z.object({ action: z.literal("print_request"), ticket_id: id }),
+  z.object({
+    action: z.literal("print_batch_request"),
+    ticket_ids: z
+      .array(id)
+      .min(1)
+      .max(500)
+      .refine(
+        (ids) => new Set(ids).size === ids.length,
+        "No repitas entradas en la solicitud",
+      ),
+  }),
   z.object({
     action: z.literal("print_result"),
     job_id: id,

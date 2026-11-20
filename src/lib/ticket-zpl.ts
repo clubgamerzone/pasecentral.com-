@@ -1,4 +1,5 @@
 import QRCode from "qrcode";
+import type { TicketLayout } from "./ticket-layout";
 import {
   parsePrintSettings,
   PAPER_SIZES,
@@ -6,11 +7,13 @@ import {
 } from "./print-settings";
 
 export type PrintedTicket = {
+  layout?: TicketLayout;
   credential: string;
   visible_number: string;
   security_serial: string;
   type_name: string;
   status: string;
+  preprinted?: boolean;
 };
 export type PrintedEvent = {
   title: string;
@@ -18,6 +21,24 @@ export type PrintedEvent = {
   venue_name: string;
   address?: string;
 };
+export function assertTicketLayout(
+  value: unknown,
+): asserts value is TicketLayout {
+  const layout = value as TicketLayout | undefined;
+  if (
+    !layout ||
+    !Array.isArray(layout.halves) ||
+    layout.halves.length !== 2 ||
+    layout.halves.some(
+      (h) =>
+        !h ||
+        h.width !== 560 ||
+        h.height !== 320 ||
+        !/^[0-9A-F]{44800}$/.test(h.hex),
+    )
+  )
+    throw new Error("La imagen de la boleta no está lista para imprimir");
+}
 
 // Encode every UTF-8 byte: user content can never become a ZPL command.
 function hex(value: string) {
@@ -38,7 +59,10 @@ export function ticketZpl(
   const settings = parsePrintSettings(input),
     paper = PAPER_SIZES[settings.paper];
   if (!paper.height) throw new Error("El recibo de 80 mm utiliza ESC/POS");
-  if (ticket.status !== "valid")
+  if (
+    ticket.status !== "valid" &&
+    !(ticket.preprinted && ticket.status === "stock")
+  )
     throw new Error("Solo se imprimen boletas vigentes en STARPOS");
   if (
     !ticket.credential ||
@@ -60,6 +84,35 @@ export function ticketZpl(
     hour12: false,
   });
   const compact = paper.height === 40;
+  if (ticket.layout) {
+    assertTicketLayout(ticket.layout);
+    const halves = ticket.layout.halves;
+    if (
+      !Array.isArray(halves) ||
+      halves.length !== 2 ||
+      halves.some(
+        (h) =>
+          h.width !== 560 ||
+          h.height !== 320 ||
+          !/^[0-9A-F]{44800}$/.test(h.hex),
+      )
+    )
+      throw new Error("La imagen de la boleta no está lista para imprimir");
+    const images = compact
+      ? halves.map((h) => h.hex)
+      : [halves.map((h) => h.hex).join("")];
+    return (
+      `~SD${settings.darkness}\n` +
+      images
+        .map(
+          (hex) =>
+            `^XA\n^PR2^MD0^MN${{ black_mark: "M", gap: "Y", continuous: "N" }[settings.tracking]},0^MTT^PW560^LL${paper.height! * 8}^LH0,0^LS0^LT${settings.topMm * 8}^PON^FWN\n^FO0,${compact ? 0 : 40}^GFA,${hex.length / 2},${hex.length / 2},70,${hex}^FS\n^PQ1,0,1,N\n^XZ`,
+        )
+        .join("\n")
+    );
+  }
+  if (compact)
+    throw new Error("Actualiza la vista previa para preparar la boleta doble");
   const modules = QRCode.create(ticket.credential, {
     errorCorrectionLevel: "M",
   }).modules.size;

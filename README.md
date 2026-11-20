@@ -146,3 +146,9 @@ Vista general y Análisis/reportes permiten comparar eventos/años y consultar f
 ## Cuentas y regalos
 
 Registro con género y edad opcional, Mi perfil con eliminación propia, regalos y transferencias aceptables durante siete días desde Mis entradas. Admin gestiona Organizaciones y fases Online/Taquilla/Ambos; apertura usa hora del día de inicio, edad mínima editable y precios COP con miles. Guía técnica/operativa, migración 008, plantillas Auth españolas y límites: [docs/ACCOUNTS_TICKETS_2026-10-14.md](docs/ACCOUNTS_TICKETS_2026-10-14.md).
+
+### Boleta doble y diseño por evento
+La versión local incorpora dos tramos70×40mm por persona y una vista de pantalla compartida con PDF/impresión. Configurar el arte en Mis eventos → evento → Logo y diseño para boletas. Requiere migración013; procedimientos, defaults, permisos y pruebas en [docs/TICKET_DOUBLE_LAYOUT.md](docs/TICKET_DOUBLE_LAYOUT.md). El ensayo físico del diseño doble nuevo sigue pendiente y no se ha publicado este cambio.
+
+## Boletas preimpresas sin activar
+Inventario y activación de venta en /box-office/preprints. Lotes con precio/localidad fijos apartan cupo sin registrar ventas; taquilla escanea y confirma cobro para activar el mismo QR, acceso lo usa una vez. Bloqueo de pendientes, asignación y formatos existentes. Migración014 y guía de uso/permisos/ensayo: [docs/PREPRINTED_TICKETS.md](docs/PREPRINTED_TICKETS.md). Implementación local; no confundir con despliegue público ni prueba física.

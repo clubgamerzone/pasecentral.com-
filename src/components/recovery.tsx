@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Field, useApp } from "./app";
@@ -13,7 +14,7 @@ export function Recovery({ reset = false }: { reset?: boolean }) {
     return (
       <section className="panel">
         La demo local utiliza perfiles ficticios.{" "}
-        <a href="/login">Volver al acceso</a>
+        <Link href="/login">Volver al acceso</Link>
       </section>
     );
   const authorized = !reset || !!data.actor;
@@ -35,7 +36,7 @@ export function Recovery({ reset = false }: { reset?: boolean }) {
       {!authorized ? (
         <div className="notice">
           El enlace no es válido o venció.{" "}
-          <a href="/forgot-password">Solicita un nuevo enlace</a>.
+          <Link href="/forgot-password">Solicita un nuevo enlace</Link>.
         </div>
       ) : (
         !done && (
@@ -127,9 +128,9 @@ export function Recovery({ reset = false }: { reset?: boolean }) {
           nuevo aquí. Abre el enlace en este mismo navegador.
         </p>
       )}
-      <a className="link" href="/login">
+      <Link className="link" href="/login">
         Volver a iniciar sesión
-      </a>
+      </Link>
     </section>
   );
 }

@@ -70,7 +70,7 @@ export async function transferTickets(
       t.owner_user_id !== a.id ||
       t.status !== "valid" ||
       t.used_at ||
-      new Date(t.ends_at) <= new Date()
+      (t.ends_at != null && new Date(t.ends_at) <= new Date())
     )
       fail(
         "Solo puedes transferir tus entradas vigentes, sin usar y de eventos pendientes",
@@ -151,7 +151,10 @@ export async function resolveTransfer(
   if (r.status !== "pending") fail("La entrega ya fue resuelta", 409);
   if (!cancel && r.to_user_id && r.to_user_id !== a.id)
     fail("La entrega fue dirigida a otra identidad de cuenta", 403);
-  if (accept && tickets.some((t) => new Date(t.ends_at) <= new Date()))
+  if (
+    accept &&
+    tickets.some((t) => t.ends_at != null && new Date(t.ends_at) <= new Date())
+  )
     fail("El evento de alguna entrada ya terminó");
   if (accept && tickets.some((t) => t.minimum_age > 0) && !ageConfirmed)
     fail("Confirma que cumples la edad mínima de los eventos");

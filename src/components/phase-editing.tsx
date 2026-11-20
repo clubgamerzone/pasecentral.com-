@@ -2,10 +2,11 @@
 import { useState } from "react";
 import type { Row } from "@/lib/db";
 import { useApp, Field } from "./app";
-import { localDateTime } from "./enhanced-fields";
+import { localDateTime, PhaseEnd } from "./enhanced-fields";
 export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
   const [open, setOpen] = useState(false);
-  const { run, busy } = useApp();
+  const { run, busy, data } = useApp();
+  const event = data.events.find((e) => e.id === eventId);
   return (
     <>
       <button type="button" className="btn small" onClick={() => setOpen(true)}>
@@ -22,9 +23,16 @@ export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
             className="panel"
             onSubmit={async (e) => {
               e.preventDefault();
-              const values = Object.fromEntries(new FormData(e.currentTarget));
-              for (const k of ["starts_at", "ends_at"])
-                values[k] = new Date(`${values[k]}:00-05:00`).toISOString();
+              const fields = Object.fromEntries(new FormData(e.currentTarget));
+              const values = {
+                ...fields,
+                starts_at: new Date(
+                  `${fields.starts_at}:00-05:00`,
+                ).toISOString(),
+                ends_at: fields.ends_with_event
+                  ? null
+                  : new Date(`${fields.ends_at}:00-05:00`).toISOString(),
+              };
               const r = await run(
                 {
                   action: "update_phase",
@@ -67,12 +75,7 @@ export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
                 type="datetime-local"
                 defaultValue={localDateTime(phase.starts_at)}
               />
-              <Field
-                name="ends_at"
-                label="Fin de la fase"
-                type="datetime-local"
-                defaultValue={localDateTime(phase.ends_at)}
-              />
+              <PhaseEnd event={event} phase={phase} label="Fin de la fase" />
             </div>
             <p>
               Hora de Colombia. No puede superponerse con otra fase activa para

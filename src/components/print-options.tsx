@@ -4,18 +4,24 @@ import {
   DEFAULT_PRINT_SETTINGS,
   PAPER_SIZES,
   PRINT_SETTINGS_KEY,
+  LEGACY_PRINT_SETTINGS_KEY,
+  upgradeLegacyPrintSettings,
   paperPreset,
   parsePrintSettings,
   type PaperSize,
   type PrintSettings,
 } from "@/lib/print-settings";
 import type { Row } from "@/lib/db";
+import { ticketCounter } from "@/lib/ticket-number";
 
 let temporarySettings: string | null = null;
 function readSettings() {
   if (temporarySettings !== null) return temporarySettings;
   try {
-    return localStorage.getItem(PRINT_SETTINGS_KEY) ?? "";
+    const current = localStorage.getItem(PRINT_SETTINGS_KEY);
+    if (current) return current;
+    const legacy = localStorage.getItem(LEGACY_PRINT_SETTINGS_KEY);
+    return legacy ? upgradeLegacyPrintSettings(legacy) : "";
   } catch {
     return "";
   }
@@ -85,14 +91,32 @@ export function PrintOptions({
       </select>
       <p className="helper">
         Se recuerda en este navegador de taquilla. Cambiar de papel carga sus
-        ajustes iniciales; no modifica tus entradas ni el PDF digital.
+        ajustes iniciales; no modifica la identidad de tus entradas.
       </p>
+      {settings.paper === "ticket70x40" && (
+        <p className="notice">
+          Una entrada ocupa dos tramos consecutivos de 70 × 40 mm (70 × 80 mm en
+          total). El QR y el precio quedan en el talón superior; la parte
+          inferior es para el comprador. Ajuste probado en TEST-019: oscuridad
+          26, velocidad 50,8 mm/s, marca negra y desplazamiento +4 mm mediante
+          impresión ZPL directa.
+        </p>
+      )}
       {labelPaper && (
         <>
           <p className="helper">
             STARPOS IF4 · transferencia térmica con ribbon · 203 dpi. Coloca la
             cara imprimible hacia el cabezal.
           </p>
+          <div className="notice">
+            <strong>Si imprimes desde Chrome:</strong> selecciona en Windows el
+            papel de 70 × {PAPER_SIZES[settings.paper].height} mm, escala 100 %,
+            márgenes Ninguno y sin encabezados ni pies. Para esta cartulina con
+            marcas negras, configura Material → Tipo de medio → No continuo,
+            Sensor de marcas. El ajuste superior del controlador debe quedar en
+            0 mm; el desplazamiento se aplica desde esta página. La selección de
+            detección y oscuridad de abajo solo configura QZ Tray, no Windows.
+          </div>
           {settings.paper === "ticket70x100" && (
             <div className="notice">
               Formato preparado para el papel grande. Debes calibrarlo y
@@ -167,65 +191,159 @@ export function PaperTickets({
   tickets,
   event,
   settings,
+  printable = true,
+  printTickets = tickets,
+  selectedIds,
+  onToggle,
+  selectionDisabled = false,
+  onManage,
 }: {
   tickets: Row[];
   event: Row;
   settings: PrintSettings;
+  printable?: boolean;
+  printTickets?: Row[];
+  selectedIds?: string[];
+  onToggle?: (id: string) => void;
+  selectionDisabled?: boolean;
+  onManage?: (ticket: Row, operation: "deactivate" | "delete") => void;
 }) {
-  const paper = PAPER_SIZES[settings.paper];
-  if (!paper.height) return null;
-  const compact = paper.height === 40;
+  const compact = settings.paper === "ticket70x40";
+  const width = settings.paper === "receipt80" ? 80 : 70;
+  const height = compact ? 80 : settings.paper === "receipt80" ? 80 : 100;
+  const top = settings.paper === "ticket70x100" ? 5 : 0;
+  const imageStyle = {
+    left: `${((width - 70) / 2 / width) * 100}%`,
+    top: `${((top + (settings.paper === "ticket70x100" ? settings.topMm : 0)) / height) * 100}%`,
+    width: `${(70 / width) * 100}%`,
+    height: `${(80 / height) * 100}%`,
+  };
   return (
     <>
-      <style>{`@media print {
-      @page { size: 70mm ${paper.height}mm; margin: 0; }
-      .ticket-sheet { display: none !important; }
-      .paper-ticket { position: relative; box-sizing: border-box; width: 70mm; height: ${paper.height}mm; padding: 0; margin: 0; break-after: page; page-break-after: always; color: #000; background: #fff; }
-      .paper-ticket:last-child { break-after: auto; page-break-after: auto; }
-      .paper-ticket-content { position: absolute; left: 9mm; right: 3mm; top: ${Math.max(0, settings.topMm)}mm; font: ${compact ? "7" : "9"}pt Arial, sans-serif; }
-      .paper-ticket-brand { font-weight: bold; font-size: ${compact ? "8" : "13"}pt; margin: 0 0 1mm; }
-      .paper-ticket-title { font-weight: bold; height: ${compact ? "4" : "10"}mm; overflow: hidden; margin: 0; line-height: 1.05; }
-      .paper-ticket-details { display: ${compact ? "grid" : "flex"}; ${compact ? "grid-template-columns: 32mm 24mm; gap: 2mm;" : "flex-direction: column;"} }
-      .paper-ticket p { margin: 0 0 ${compact ? "0.8" : "2"}mm; line-height: 1.1; overflow-wrap: anywhere; }
-      .paper-ticket-place { max-height: ${compact ? "4" : "10"}mm; overflow: hidden; }
-      .paper-ticket img { width: ${compact ? "22" : "40"}mm; height: ${compact ? "22" : "40"}mm; display: block; ${compact ? "" : "align-self: center; margin: 2mm 0;"} }
-      .paper-ticket-terms { font-size: ${compact ? "5" : "8"}pt; margin-top: 1mm !important; }
-    }`}</style>
-      <div className="paper-tickets print-only">
+      <div className="ticket-sheet double-ticket-preview">
         {tickets.map((t) => (
-          <article className="paper-ticket" key={t.id}>
-            <div className="paper-ticket-content">
-              <div className="paper-ticket-brand">PASE CENTRAL</div>
-              <div className="paper-ticket-title">{event.title}</div>
-              <div className="paper-ticket-details">
-                <div>
-                  <p>
-                    <b>{t.type_name}</b>
-                  </p>
-                  <p>
-                    {new Date(event.starts_at).toLocaleString("es-CO", {
-                      timeZone: "America/Bogota",
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </p>
-                  <p className="paper-ticket-place">{event.venue_name}</p>
-                  <p>
-                    <b>{t.visible_number}</b>
-                  </p>
-                  <p>Serial: {t.security_serial}</p>
-                </div>
-                <img src={t.qr} alt={`QR de ${t.visible_number}`} />
-              </div>
-              <p className="paper-ticket-terms">
-                Un ingreso por entrada. No publiques tu QR.
-                <br />
-                Entrada de acceso. No es documento fiscal.
-              </p>
+          <figure className="ticket double-ticket" key={t.id}>
+            <div
+              className="ticket-double-paper"
+              style={{ aspectRatio: `${width}/${height}` }}
+            >
+              {compact ? (
+                [0, 1].map((part) => (
+                  <div className="ticket-screen-half" key={part}>
+                    <img
+                      src={t.layout?.image}
+                      alt={
+                        part
+                          ? `Parte del comprador ${t.visible_number}`
+                          : `Control y QR de ${t.visible_number}`
+                      }
+                      style={{
+                        left: 0,
+                        width: "100%",
+                        height: "200%",
+                        top: `${((settings.topMm - part * 40) / 40) * 100}%`,
+                      }}
+                    />
+                  </div>
+                ))
+              ) : (
+                <img
+                  style={imageStyle}
+                  src={t.layout?.image}
+                  alt={`Boleta ${t.visible_number} · ${event.title} · ${t.type_name} · ${t.status}`}
+                />
+              )}
+              {compact && (
+                <span className="ticket-perforation" aria-hidden="true" />
+              )}
             </div>
-          </article>
+            <figcaption className="ticket-caption no-print">
+              <b>
+                {ticketCounter(t.event_sequence)
+                  ? `Boleta N.º ${ticketCounter(t.event_sequence)}`
+                  : t.visible_number}
+              </b>
+              <span>
+                {t.status === "valid"
+                  ? "Entrada vigente"
+                  : t.preprinted && t.status === "stock"
+                    ? "Sin activar · no permite ingresar"
+                    : t.status === "used"
+                      ? "Entrada utilizada"
+                      : "Entrada anulada"}
+              </span>
+            </figcaption>
+            {onToggle && (
+              <label className="ticket-print-choice no-print">
+                <input
+                  type="checkbox"
+                  checked={selectedIds?.includes(t.id) ?? false}
+                  disabled={selectionDisabled}
+                  onChange={() => onToggle(t.id)}
+                  aria-label={`Imprimir boleta ${t.visible_number}`}
+                />
+                Incluir en impresión
+              </label>
+            )}
+            {onManage && (
+              <div
+                className="buttons no-print"
+                style={{ padding: "12px 18px" }}
+              >
+                <button
+                  className="btn danger"
+                  disabled={selectionDisabled}
+                  onClick={() => onManage(t, "deactivate")}
+                >
+                  Desactivar boleta
+                </button>
+                <button
+                  className="btn danger"
+                  disabled={selectionDisabled}
+                  onClick={() => onManage(t, "delete")}
+                >
+                  Eliminar boleta
+                </button>
+              </div>
+            )}
+          </figure>
         ))}
       </div>
+      {printable && (
+        <>
+          <style>{`@media print {
+    @page {size:${width}mm ${compact ? 40 : height}mm;margin:0}
+    .ticket-sheet {display:none!important}
+    .paper-ticket {position:relative;width:${width}mm;height:${compact ? 40 : height}mm;overflow:hidden;padding:0;margin:0;break-after:page;page-break-after:always;background:white}
+    .paper-ticket:last-child {break-after:auto;page-break-after:auto}
+    .paper-ticket img {position:absolute;display:block;left:${(width - 70) / 2}mm;width:70mm;height:80mm;max-width:none;margin:0}
+   }`}</style>
+          <div className="paper-tickets print-only">
+            {printTickets.flatMap((t) =>
+              (compact ? [0, 1] : [0]).map((part) => (
+                <article
+                  className="paper-ticket"
+                  key={`${t.id}-${part}`}
+                  data-ticket-id={t.id}
+                  data-part={part}
+                >
+                  <img
+                    src={t.layout?.image}
+                    alt={
+                      part
+                        ? `Parte del comprador ${t.visible_number}`
+                        : `Control ${t.visible_number}`
+                    }
+                    style={{
+                      top: `${compact ? settings.topMm - part * 40 : top + settings.topMm}mm`,
+                    }}
+                  />
+                </article>
+              )),
+            )}
+          </div>
+        </>
+      )}
     </>
   );
 }

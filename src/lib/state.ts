@@ -1,34 +1,108 @@
-import type { DB, Row } from "./db";
-import { admin, can, type Actor } from "./service";
+import type { DB, Row, Tx } from "./db";
+import { admin, type Actor } from "./service";
 import { demoMode, appEnvironment } from "./config";
+
+// Batch independent SELECTs in one PostgreSQL round trip. All values stay bound
+// parameters; authorization filters remain in the original SELECT statements.
+async function readBatch(
+  tx: Tx,
+  selects: { sql: string; params: unknown[] }[],
+): Promise<Row[][]> {
+  const params: unknown[] = [];
+  const columns = selects.map((select, index) => {
+    const offset = params.length;
+    const sql = select.sql.replace(
+      /\$(\d+)/g,
+      (_, n) => `$${Number(n) + offset}`,
+    );
+    params.push(...select.params);
+    return `(SELECT COALESCE(json_agg(row_to_json(rows)), '[]'::json) FROM (${sql}) rows) AS batch_${index}`;
+  });
+  const result = (await tx.query(`SELECT ${columns.join(",")}`, params))
+    .rows[0];
+  return selects.map((_, index) => result[`batch_${index}`]);
+}
+
 export async function state(db: DB, a: Actor | null) {
   const { expireTransfers } = await import("./transfers");
   await expireTransfers(db);
   return db.transaction(async (tx) => {
-    const all = (await tx.query("SELECT * FROM events ORDER BY starts_at"))
-      .rows;
+    const all = (
+      await tx.query(
+        "SELECT e.*, a.event_id IS NOT NULL AS has_ticket_art,a.updated_at AS ticket_art_updated_at,a.caption AS ticket_art_caption FROM events e LEFT JOIN event_ticket_art a ON a.event_id=e.id ORDER BY e.starts_at",
+      )
+    ).rows;
     const isAdmin = a ? await admin(tx, a) : false;
     const manageable: string[] = [],
       sellable: string[] = [],
       accessible: string[] = [],
       visible: string[] = [];
-    if (a)
+    if (a) {
+      const memberships = isAdmin
+        ? []
+        : (
+            await tx.query(
+              "SELECT organization_id FROM organization_members WHERE user_id=$1",
+              [a.id],
+            )
+          ).rows;
+      const assignments = isAdmin
+        ? []
+        : (
+            await tx.query(
+              "SELECT event_id,role FROM event_staff WHERE user_id=$1 AND active",
+              [a.id],
+            )
+          ).rows;
       for (const e of all) {
-        if (await can(tx, a, e.id, "manage")) manageable.push(e.id);
-        if (await can(tx, a, e.id, "sell")) sellable.push(e.id);
-        if (await can(tx, a, e.id, "access")) accessible.push(e.id);
-        if (await can(tx, a, e.id, "view")) visible.push(e.id);
+        const manager =
+          isAdmin ||
+          memberships.some((m) => m.organization_id === e.organization_id) ||
+          assignments.some(
+            (s) => s.event_id === e.id && s.role === "organizer",
+          );
+        const roles = assignments
+          .filter((s) => s.event_id === e.id)
+          .map((s) => s.role);
+        if (manager) manageable.push(e.id);
+        if (manager || roles.includes("box_office")) sellable.push(e.id);
+        if (manager || roles.includes("access_staff")) accessible.push(e.id);
+        if (
+          manager ||
+          roles.some((r) => ["box_office", "access_staff"].includes(r))
+        )
+          visible.push(e.id);
       }
+    }
     const events = all.filter(
       (e) => e.status === "published" || visible.includes(e.id),
     );
     const ids = events.map((e) => e.id);
-    const images = (
+    const [images, types, phases] = await readBatch(tx, [
+      {
+        sql: "SELECT id,event_id,path FROM event_images WHERE event_id=ANY($1::uuid[]) ORDER BY created_at,id",
+        params: [ids],
+      },
+      {
+        sql: `SELECT t.*,coalesce((SELECT sum(i.quantity) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.ticket_type_id=t.id AND (o.status IN ('confirmed','partially_refunded','refunded') OR (o.status='pending_payment' AND o.reservation_expires_at>now()))),0)::int AS committed FROM ticket_types t WHERE event_id=ANY($1::uuid[])`,
+        params: [ids],
+      },
+      {
+        sql: "SELECT p.*,p.ends_at IS NULL AS ends_with_event,COALESCE(p.ends_at,e.ends_at) AS effective_ends_at FROM pricing_phases p JOIN ticket_types t ON t.id=p.ticket_type_id JOIN events e ON e.id=t.event_id WHERE t.event_id=ANY($1::uuid[]) ORDER BY p.starts_at",
+        params: [ids],
+      },
+    ]);
+    const preprintHeld = (
       await tx.query(
-        "SELECT id,event_id,path FROM event_images WHERE event_id=ANY($1::uuid[]) ORDER BY created_at,id",
+        "SELECT ticket_type_id,count(*)::int AS n FROM preprinted_tickets WHERE event_id=ANY($1::uuid[]) AND status='stock' GROUP BY ticket_type_id",
         [ids],
       )
     ).rows;
+    for (const t of types) {
+      t.preprinted_reserved =
+        preprintHeld.find((p) => p.ticket_type_id === t.id)?.n ?? 0;
+      t.committed += t.preprinted_reserved;
+    }
     for (const e of events) {
       e.images = images
         .filter((i) => i.event_id === e.id)
@@ -40,26 +114,18 @@ export async function state(db: DB, a: Actor | null) {
       e.cover_url = e.images.find((i: Row) => i.cover)?.url ?? null;
       delete e.cover_path;
     }
-    const types = (
-      await tx.query(
-        `SELECT t.*,coalesce((SELECT sum(i.quantity) FROM order_items i JOIN orders o ON o.id=i.order_id WHERE i.ticket_type_id=t.id AND (o.status IN ('confirmed','partially_refunded','refunded') OR (o.status='pending_payment' AND o.reservation_expires_at>now()))),0)::int AS committed FROM ticket_types t WHERE event_id=ANY($1::uuid[])`,
-        [ids],
-      )
-    ).rows;
-    const phases = (
-      await tx.query(
-        "SELECT p.* FROM pricing_phases p JOIN ticket_types t ON t.id=p.ticket_type_id WHERE t.event_id=ANY($1::uuid[]) ORDER BY p.starts_at",
-        [ids],
-      )
-    ).rows;
+
     for (const e of events)
-      e.available = Math.max(
-        0,
-        e.capacity -
-          types
-            .filter((t) => t.event_id === e.id)
-            .reduce((sum, t) => sum + t.committed, 0),
-      );
+      e.available =
+        e.capacity === null
+          ? null
+          : Math.max(
+              0,
+              e.capacity -
+                types
+                  .filter((t) => t.event_id === e.id)
+                  .reduce((sum, t) => sum + t.committed, 0),
+            );
     const orgs = a
       ? (
           await tx.query(
@@ -89,73 +155,61 @@ export async function state(db: DB, a: Actor | null) {
         )
       ).rows;
       const orderIds = orders.map((o) => o.id);
-      tickets = (
-        await tx.query(
-          `SELECT t.id,t.owner_user_id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name,EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') AS transfer_pending FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE t.owner_user_id=$1 OR t.event_id=ANY($2::uuid[]) OR (i.order_id=ANY($3::uuid[]) AND t.owner_user_id IS NULL) ORDER BY t.event_sequence`,
-          [a.id, [...sellable, ...accessible], orderIds],
-        )
-      ).rows;
-      payments = (
-        await tx.query(
-          "SELECT p.* FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.id=ANY($1::uuid[])",
-          [orderIds],
-        )
-      ).rows;
-      sessions = (
-        await tx.query(
-          "SELECT * FROM cash_sessions WHERE event_id=ANY($1::uuid[]) AND (operator_id=$2 OR event_id=ANY($3::uuid[])) ORDER BY opened_at DESC",
-          [sellable, a.id, manageable],
-        )
-      ).rows;
+      [tickets, payments, sessions, attempts, jobs, refunds] = await readBatch(
+        tx,
+        [
+          {
+            sql: `SELECT t.id,t.owner_user_id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name,EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') AS transfer_pending FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE t.owner_user_id=$1 OR t.event_id=ANY($2::uuid[]) OR (i.order_id=ANY($3::uuid[]) AND t.owner_user_id IS NULL) ORDER BY t.event_sequence`,
+            params: [a.id, [...sellable, ...accessible], orderIds],
+          },
+          {
+            sql: "SELECT p.* FROM payments p JOIN orders o ON o.id=p.order_id WHERE o.id=ANY($1::uuid[])",
+            params: [orderIds],
+          },
+          {
+            sql: "SELECT * FROM cash_sessions WHERE event_id=ANY($1::uuid[]) AND (operator_id=$2 OR event_id=ANY($3::uuid[])) ORDER BY opened_at DESC",
+            params: [sellable, a.id, manageable],
+          },
+          {
+            sql: "SELECT * FROM check_in_attempts WHERE event_id=ANY($1::uuid[]) ORDER BY attempted_at DESC",
+            params: [visible],
+          },
+          {
+            sql: "SELECT id,order_id,status,attempts,last_error,created_at FROM delivery_jobs WHERE order_id=ANY($1::uuid[]) ORDER BY created_at DESC LIMIT 200",
+            params: [orderIds],
+          },
+          {
+            sql: "SELECT r.* FROM refunds r JOIN orders o ON o.id=r.order_id WHERE o.event_id=ANY($1::uuid[])",
+            params: [manageable],
+          },
+        ],
+      );
       movements = (
         await tx.query(
           "SELECT * FROM cash_movements WHERE cash_session_id=ANY($1::uuid[])",
           [sessions.map((s) => s.id)],
         )
       ).rows;
-      attempts = (
-        await tx.query(
-          "SELECT * FROM check_in_attempts WHERE event_id=ANY($1::uuid[]) ORDER BY attempted_at DESC",
-          [visible],
-        )
-      ).rows;
-      jobs = (
-        await tx.query(
-          "SELECT id,order_id,status,attempts,last_error,created_at FROM delivery_jobs WHERE order_id=ANY($1::uuid[]) ORDER BY created_at DESC LIMIT 200",
-          [orderIds],
-        )
-      ).rows;
-      refunds = (
-        await tx.query(
-          "SELECT r.* FROM refunds r JOIN orders o ON o.id=r.order_id WHERE o.event_id=ANY($1::uuid[])",
-          [manageable],
-        )
-      ).rows;
+
       if (manageable.length || isAdmin) {
-        people = (
-          await tx.query(
-            "SELECT id,name,email,EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id=profiles.id) AS platform_admin, ARRAY(SELECT m.organization_id FROM organization_members m WHERE m.user_id=profiles.id AND m.organization_id IN (SELECT organization_id FROM events WHERE id=ANY($3::uuid[]))) AS managing_organizations FROM profiles WHERE deleted_at IS NULL AND ($1::boolean OR id=$2 OR EXISTS(SELECT 1 FROM event_staff s WHERE s.user_id=profiles.id AND s.event_id=ANY($3::uuid[]))) ORDER BY name",
-            [isAdmin, a.id, manageable],
-          )
-        ).rows;
-        staff = (
-          await tx.query(
-            "SELECT * FROM event_staff WHERE event_id=ANY($1::uuid[])",
-            [manageable],
-          )
-        ).rows;
-        members = (
-          await tx.query(
-            "SELECT * FROM organization_members WHERE organization_id=ANY($1::uuid[])",
-            [orgs.map((o) => o.id)],
-          )
-        ).rows;
-        audit = (
-          await tx.query(
-            "SELECT l.* FROM audit_logs l WHERE $1::boolean OR actor_id=$2 ORDER BY created_at DESC LIMIT 200",
-            [isAdmin, a.id],
-          )
-        ).rows;
+        [people, staff, members, audit] = await readBatch(tx, [
+          {
+            sql: "SELECT id,name,email,EXISTS(SELECT 1 FROM platform_admins pa WHERE pa.user_id=profiles.id) AS platform_admin, ARRAY(SELECT m.organization_id FROM organization_members m WHERE m.user_id=profiles.id AND m.organization_id IN (SELECT organization_id FROM events WHERE id=ANY($3::uuid[]))) AS managing_organizations FROM profiles WHERE deleted_at IS NULL AND ($1::boolean OR id=$2 OR EXISTS(SELECT 1 FROM event_staff s WHERE s.user_id=profiles.id AND s.event_id=ANY($3::uuid[]))) ORDER BY name",
+            params: [isAdmin, a.id, manageable],
+          },
+          {
+            sql: "SELECT * FROM event_staff WHERE event_id=ANY($1::uuid[])",
+            params: [manageable],
+          },
+          {
+            sql: "SELECT * FROM organization_members WHERE organization_id=ANY($1::uuid[])",
+            params: [orgs.map((o) => o.id)],
+          },
+          {
+            sql: "SELECT l.* FROM audit_logs l WHERE $1::boolean OR actor_id=$2 ORDER BY created_at DESC LIMIT 200",
+            params: [isAdmin, a.id],
+          },
+        ]);
       }
     }
     const items = a

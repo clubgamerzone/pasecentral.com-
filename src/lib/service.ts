@@ -94,7 +94,7 @@ export async function audit(
     [a?.id ?? null, action, type, id, JSON.stringify(metadata)],
   );
 }
-async function lockEvent(tx: Tx, id: string) {
+export async function lockEvent(tx: Tx, id: string) {
   return one(tx, "SELECT * FROM events WHERE id=$1 FOR UPDATE", [id]);
 }
 async function expire(tx: Tx, eventId: string) {
@@ -103,29 +103,46 @@ async function expire(tx: Tx, eventId: string) {
     [eventId],
   );
 }
-async function stock(tx: Tx, eventId: string, typeId?: string) {
+async function stock(
+  tx: Tx,
+  eventId: string,
+  typeId?: string,
+  excludePreprint?: string,
+) {
   const p: unknown[] = [eventId];
   if (typeId) p.push(typeId);
-  return Number(
-    (
-      await one(
-        tx,
-        `SELECT coalesce(sum(i.quantity),0)::int AS count FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.event_id=$1 ${typeId ? "AND i.ticket_type_id=$2" : ""} AND ((o.status='pending_payment' AND o.reservation_expires_at>now()) OR o.status IN ('confirmed','partially_refunded','refunded'))`,
-        p,
-      )
-    ).count,
+  const held = await one(
+    tx,
+    "SELECT count(*)::int AS n FROM preprinted_tickets WHERE event_id=$1 AND status='stock' AND ($2::uuid IS NULL OR ticket_type_id=$2) AND ($3::uuid IS NULL OR id<>$3)",
+    [eventId, typeId ?? null, excludePreprint ?? null],
+  );
+  return (
+    held.n +
+    Number(
+      (
+        await one(
+          tx,
+          `SELECT coalesce(sum(i.quantity),0)::int AS count FROM order_items i JOIN orders o ON o.id=i.order_id WHERE o.event_id=$1 ${typeId ? "AND i.ticket_type_id=$2" : ""} AND ((o.status='pending_payment' AND o.reservation_expires_at>now()) OR o.status IN ('confirmed','partially_refunded','refunded'))`,
+          p,
+        )
+      ).count,
+    )
   );
 }
 // Capacity remains consumed after cancellation/refund; organizer cannot silently resell cancelled credentials.
-async function enough(
+export async function enough(
   tx: Tx,
   e: Row,
   items: { ticket_type_id: string; quantity: number }[],
+  excludePreprint?: string,
 ) {
   const total = items.reduce((sum, x) => sum + x.quantity, 0);
   if (new Set(items.map((x) => x.ticket_type_id)).size !== items.length)
     fail("Localidades repetidas");
-  if ((await stock(tx, e.id)) + total > e.capacity)
+  if (
+    e.capacity !== null &&
+    (await stock(tx, e.id, undefined, excludePreprint)) + total > e.capacity
+  )
     fail("No hay cupo disponible");
   for (const i of items) {
     const t = await one(
@@ -133,7 +150,10 @@ async function enough(
       "SELECT * FROM ticket_types WHERE id=$1 AND event_id=$2 AND active",
       [i.ticket_type_id, e.id],
     );
-    if ((await stock(tx, e.id, t.id)) + i.quantity > t.capacity)
+    if (
+      t.capacity !== null &&
+      (await stock(tx, e.id, t.id, excludePreprint)) + i.quantity > t.capacity
+    )
       fail(`Sin cupo en ${t.name}`);
   }
 }
@@ -143,7 +163,7 @@ async function orderPermit(tx: Tx, a: Actor, id: string, manage = false) {
   await permit(tx, a, o.event_id, manage ? "manage" : "sell");
   return o;
 }
-async function issue(tx: Tx, o: Row, e: Row) {
+async function issue(tx: Tx, o: Row, e: Row, preprint?: Row) {
   if (
     (
       await tx.query(
@@ -174,8 +194,12 @@ async function issue(tx: Tx, o: Row, e: Row) {
       const attendee = attendeeRows.find(
         (a) => a.order_item_id === i.id && a.ordinal === n + 1,
       );
-      const credential = token();
-      const num = `PC-${String(e.id).slice(0, 8).toUpperCase()}-${String(seq).padStart(6, "0")}`;
+      const credential = preprint
+        ? decrypt(preprint.credential_encrypted)
+        : token();
+      const num =
+        preprint?.visible_number ??
+        `PC-${String(e.id).slice(0, 8).toUpperCase()}-${String(seq).padStart(6, "0")}`;
       await tx.query(
         "INSERT INTO tickets(event_id,ticket_type_id,order_item_id,owner_user_id,event_sequence,visible_number,security_serial,credential_hash,credential_encrypted,attendee_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
         [
@@ -183,9 +207,9 @@ async function issue(tx: Tx, o: Row, e: Row) {
           i.ticket_type_id,
           i.id,
           o.buyer_user_id,
-          seq++,
+          preprint?.event_sequence ?? seq++,
           num,
-          token().slice(0, 16).toUpperCase(),
+          preprint?.security_serial ?? token().slice(0, 16).toUpperCase(),
           hash(credential),
           encrypt(credential),
           attendee?.id ?? null,
@@ -226,13 +250,14 @@ async function issue(tx: Tx, o: Row, e: Row) {
   } else if (o.buyer_email)
     await tx.query("INSERT INTO delivery_jobs(order_id) VALUES($1)", [o.id]);
   await audit(tx, null, "tickets_issued", "order", o.id, {
-    quantity: seq - e.next_sequence,
+    quantity: preprint ? 1 : seq - e.next_sequence,
   });
 }
-async function createOrder(
+export async function createOrder(
   tx: Tx,
   a: Actor,
   c: Extract<Command, { action: "reserve" | "sell" }>,
+  preprint?: Row,
 ) {
   const web = c.action === "reserve";
   for (const item of c.items) {
@@ -275,7 +300,7 @@ async function createOrder(
   }
   if (e.status !== "published") fail("Este evento no tiene ventas abiertas");
   await expire(tx, e.id);
-  await enough(tx, e, c.items);
+  await enough(tx, e, c.items, preprint?.id);
   const channel = web ? "web" : complimentary ? "complimentary" : "box_office";
   if (
     c.action === "sell" &&
@@ -293,16 +318,22 @@ async function createOrder(
       "SELECT * FROM ticket_types WHERE id=$1 AND event_id=$2",
       [i.ticket_type_id, e.id],
     );
-    const phase = complimentary
-      ? { id: null, price_cop: 0, name: "Cortesía" }
-      : await one(
-          tx,
-          "SELECT * FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND ends_at>now()",
-          [t.id, channel],
-        );
+    const phase = preprint
+      ? {
+          id: preprint.pricing_phase_id,
+          price_cop: preprint.unit_price_cop,
+          name: preprint.phase_name,
+        }
+      : complimentary
+        ? { id: null, price_cop: 0, name: "Cortesía" }
+        : await one(
+            tx,
+            "SELECT * FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND COALESCE(ends_at,(SELECT e.ends_at FROM events e JOIN ticket_types t ON t.event_id=e.id WHERE t.id=ticket_type_id),'infinity'::timestamptz)>now()",
+            [t.id, channel],
+          );
     const line = phase.price_cop * i.quantity;
     total += line;
-    lines.push({ ...i, type_name: t.name, phase, line });
+    lines.push({ ...i, type_name: preprint?.type_name ?? t.name, phase, line });
   }
   if (!Number.isSafeInteger(total) || total > 100000000)
     fail("Importe fuera del límite");
@@ -404,7 +435,7 @@ async function createOrder(
     );
   if (!web) {
     await tx.query("UPDATE orders SET confirmed_at=now() WHERE id=$1", [o.id]);
-    await issue(tx, o, e);
+    await issue(tx, o, e, preprint);
     await audit(
       tx,
       a,
@@ -544,6 +575,15 @@ async function checkin(
       ],
     )
   ).rows[0];
+  const preprint =
+    !t && c.action === "checkin"
+      ? (
+          await tx.query(
+            "SELECT event_id,status,visible_number FROM preprinted_tickets WHERE credential_hash=$1",
+            [hash(c.credential.replace(/^pc:/, ""))],
+          )
+        ).rows[0]
+      : undefined;
   const now = Date.now();
   const held =
     t &&
@@ -556,7 +596,15 @@ async function checkin(
   const result = !authorized
     ? "unauthorized"
     : !t
-      ? "unknown_ticket"
+      ? preprint
+        ? preprint.event_id !== e.id
+          ? "wrong_event"
+          : preprint.status === "blocked" || e.status === "cancelled"
+            ? "cancelled"
+            : preprint.status === "stock"
+              ? "not_activated"
+              : "cancelled"
+        : "unknown_ticket"
       : t.event_id !== e.id
         ? "wrong_event"
         : held
@@ -566,7 +614,9 @@ async function checkin(
             : t.status === "used"
               ? "already_used"
               : now < new Date(e.admission_starts_at).getTime() ||
-                  now >= new Date(e.admission_ends_at).getTime() ||
+                  ((e.admission_ends_at ?? e.ends_at) != null &&
+                    now >=
+                      new Date(e.admission_ends_at ?? e.ends_at).getTime()) ||
                   e.status === "finished"
                 ? "outside_admission_window"
                 : "accepted";
@@ -596,7 +646,9 @@ async function checkin(
   return {
     result,
     ticket_id: authorized ? (t?.id ?? null) : null,
-    visible_number: authorized ? (t?.visible_number ?? null) : null,
+    visible_number: authorized
+      ? (t?.visible_number ?? preprint?.visible_number ?? null)
+      : null,
   };
 }
 export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
@@ -691,8 +743,10 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
             "La apertura de puertas debe estar en la fecha de inicio del evento",
           );
         if (
-          new Date(c.ends_at) <= new Date(c.starts_at) ||
-          new Date(c.admission_ends_at) <= new Date(c.admission_starts_at)
+          (c.ends_at !== null &&
+            new Date(c.ends_at) <= new Date(c.starts_at)) ||
+          (c.admission_ends_at !== null &&
+            new Date(c.admission_ends_at) <= new Date(c.admission_starts_at))
         )
           fail(
             "El fin del evento y el cierre de puertas deben ser posteriores a sus inicios",
@@ -743,7 +797,7 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
               if (
                 !(
                   await tx.query(
-                    "SELECT 1 FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND ends_at>now()",
+                    "SELECT 1 FROM pricing_phases WHERE ticket_type_id=$1 AND channel IN ($2,'both') AND active AND starts_at<=now() AND COALESCE(ends_at,(SELECT e.ends_at FROM events e JOIN ticket_types t ON t.event_id=e.id WHERE t.id=ticket_type_id),'infinity'::timestamptz)>now()",
                     [t.id, ch],
                   )
                 ).rows.length
@@ -788,20 +842,26 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         const e = await lockEvent(tx, c.event_id);
         await expire(tx, e.id);
         if (
-          new Date(c.ends_at) <= new Date(c.starts_at) ||
-          new Date(c.admission_ends_at) <= new Date(c.admission_starts_at)
+          (c.ends_at !== null &&
+            new Date(c.ends_at) <= new Date(c.starts_at)) ||
+          (c.admission_ends_at !== null &&
+            new Date(c.admission_ends_at) <= new Date(c.admission_starts_at))
         )
           fail(
             "El fin del evento y el cierre de puertas deben ser posteriores a sus inicios",
           );
-        if (c.capacity < (await stock(tx, e.id)))
+        if (c.capacity !== null && c.capacity < (await stock(tx, e.id)))
           fail("El aforo no puede ser menor que las entradas comprometidas");
         const largest = await one(
           tx,
-          "SELECT coalesce(max(capacity),0)::int AS capacity FROM ticket_types WHERE event_id=$1",
+          "SELECT coalesce(max(capacity),0)::int AS capacity,count(*) FILTER (WHERE capacity IS NULL)::int AS unlimited FROM ticket_types WHERE event_id=$1",
           [e.id],
         );
-        if (c.capacity < largest.capacity)
+        if (c.capacity !== null && largest.unlimited > 0)
+          fail(
+            "Define primero un cupo para las localidades ilimitadas antes de limitar el aforo del evento",
+          );
+        if (c.capacity !== null && c.capacity < largest.capacity)
           fail(
             "Reduce primero el cupo de las localidades que superan el nuevo aforo",
           );
@@ -829,11 +889,17 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
           "SELECT * FROM ticket_types WHERE id=$1 AND event_id=$2",
           [c.ticket_type_id, e.id],
         );
-        if (c.capacity > e.capacity)
+        if (c.capacity === null && e.capacity !== null)
+          fail("El cupo ilimitado requiere un evento con aforo ilimitado");
+        if (
+          e.capacity !== null &&
+          c.capacity !== null &&
+          c.capacity > e.capacity
+        )
           fail(
             "Cupo de localidad mayor al aforo; aumenta primero el aforo del evento",
           );
-        if (c.capacity < (await stock(tx, e.id, t.id)))
+        if (c.capacity !== null && c.capacity < (await stock(tx, e.id, t.id)))
           fail(
             "El cupo no puede ser menor que las entradas comprometidas de esta localidad",
           );
@@ -867,7 +933,14 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "add_type": {
         await permit(tx, a, c.event_id, "manage");
         const e = await lockEvent(tx, c.event_id);
-        if (c.capacity > e.capacity) fail("Cupo de localidad mayor al aforo");
+        if (c.capacity === null && e.capacity !== null)
+          fail("El cupo ilimitado requiere un evento con aforo ilimitado");
+        if (
+          e.capacity !== null &&
+          c.capacity !== null &&
+          c.capacity > e.capacity
+        )
+          fail("Cupo de localidad mayor al aforo");
         const t = await one(
           tx,
           "INSERT INTO ticket_types(event_id,name,capacity) VALUES($1,$2,$3) RETURNING id",
@@ -877,10 +950,19 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         return { ticket_type_id: t.id };
       }
       case "update_phase": {
-        if (new Date(c.ends_at) <= new Date(c.starts_at))
+        if (c.ends_at && new Date(c.ends_at) <= new Date(c.starts_at))
           fail("El fin de la fase debe ser posterior al inicio");
         await permit(tx, a, c.event_id, "manage");
         await lockEvent(tx, c.event_id);
+        if (c.ends_at === null) {
+          const event = await one(
+            tx,
+            "SELECT ends_at FROM events WHERE id=$1",
+            [c.event_id],
+          );
+          if (event.ends_at && new Date(event.ends_at) <= new Date(c.starts_at))
+            fail("El inicio de la fase debe ser anterior al final del evento");
+        }
         const p = await one(
           tx,
           "SELECT p.id FROM pricing_phases p JOIN ticket_types t ON t.id=p.ticket_type_id WHERE p.id=$1 AND t.event_id=$2",
@@ -894,10 +976,19 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         return {};
       }
       case "add_phase": {
-        if (new Date(c.ends_at) <= new Date(c.starts_at))
+        if (c.ends_at && new Date(c.ends_at) <= new Date(c.starts_at))
           fail("El fin de la fase debe ser posterior al inicio");
         await permit(tx, a, c.event_id, "manage");
         await lockEvent(tx, c.event_id);
+        if (c.ends_at === null) {
+          const event = await one(
+            tx,
+            "SELECT ends_at FROM events WHERE id=$1",
+            [c.event_id],
+          );
+          if (event.ends_at && new Date(event.ends_at) <= new Date(c.starts_at))
+            fail("El inicio de la fase debe ser anterior al final del evento");
+        }
         await one(
           tx,
           "SELECT id FROM ticket_types WHERE id=$1 AND event_id=$2",
@@ -990,6 +1081,17 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "reserve":
       case "sell":
         return createOrder(tx, a, c);
+      case "preprint_create":
+      case "preprint_lookup":
+      case "preprint_activate":
+      case "preprint_block":
+      case "preprint_delete":
+      case "preprint_assign":
+      case "preprint_print_request":
+      case "preprint_print_result": {
+        const { preprintCommand } = await import("./preprints");
+        return preprintCommand(tx, a, c);
+      }
       case "checkin":
       case "manual_checkin":
         return checkin(tx, a, c);
@@ -997,7 +1099,7 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         // Resolve only from the secret credential; never trust an event supplied by a client.
         const t = (
           await tx.query(
-            "SELECT event_id FROM tickets WHERE credential_hash=$1",
+            "SELECT event_id FROM tickets WHERE credential_hash=$1 UNION SELECT event_id FROM preprinted_tickets WHERE credential_hash=$1 LIMIT 1",
             [hash(c.credential.replace(/^pc:/, ""))],
           )
         ).rows[0];
@@ -1244,6 +1346,35 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         await audit(tx, a, c.action, "order", o.id);
         return {};
       }
+      case "print_batch_request": {
+        const tickets = (
+          await tx.query(
+            "SELECT id,event_id FROM tickets WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",
+            [c.ticket_ids],
+          )
+        ).rows;
+        if (tickets.length !== c.ticket_ids.length)
+          fail("Una de las entradas no existe", 404);
+        for (const eventId of new Set(tickets.map((t) => t.event_id)))
+          await permit(tx, a, eventId, "sell");
+        const jobs = (
+          await tx.query(
+            `INSERT INTO print_jobs(ticket_id,operator_id,status,is_reprint)
+           SELECT t.id,$2,'requested',EXISTS(SELECT 1 FROM print_jobs p WHERE p.ticket_id=t.id)
+           FROM tickets t WHERE t.id=ANY($1::uuid[])
+           RETURNING id AS job_id,ticket_id,is_reprint`,
+            [c.ticket_ids, a.id],
+          )
+        ).rows;
+        await tx.query(
+          `INSERT INTO audit_logs(actor_id,action,entity_type,entity_id,safe_metadata)
+           SELECT $2,CASE WHEN is_reprint THEN 'ticket_reprint' ELSE 'ticket_print' END,
+             'ticket',ticket_id,'{}'::jsonb
+           FROM print_jobs WHERE id=ANY($1::uuid[])`,
+          [jobs.map((j) => j.job_id), a.id],
+        );
+        return { jobs };
+      }
       case "print_request": {
         const t = await one(tx, "SELECT * FROM tickets WHERE id=$1", [
           c.ticket_id,
@@ -1316,17 +1447,30 @@ export async function ticketDocument(
         a ? 403 : 401,
       );
     const e = await one(tx, "SELECT * FROM events WHERE id=$1", [o.event_id]);
+    const art = (
+      await tx.query(
+        "SELECT image_png,caption FROM event_ticket_art WHERE event_id=$1",
+        [e.id],
+      )
+    ).rows[0];
+    e.ticket_art_caption = art?.caption;
+    e.ticket_art_data_url = art
+      ? `data:image/png;base64,${Buffer.from(art.image_png).toString("base64")}`
+      : null;
     const tickets = (
       await tx.query(
-        "SELECT t.*,i.type_name FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1 AND ($2::boolean OR t.owner_user_id=$3 OR ($4::boolean AND (t.owner_user_id=$5 OR t.owner_user_id IS NULL))) AND NOT EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') ORDER BY t.event_sequence",
+        "SELECT t.*,i.type_name,i.phase_name,i.unit_price_cop FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE i.order_id=$1 AND ($2::boolean OR t.owner_user_id=$3 OR ($4::boolean AND (t.owner_user_id=$5 OR t.owner_user_id IS NULL))) AND NOT EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') ORDER BY t.event_sequence",
         [o.id, staff, a?.id ?? null, shared, o.buyer_user_id],
       )
     ).rows.map((t) => ({
       id: t.id,
       visible_number: t.visible_number,
+      event_sequence: t.event_sequence,
       security_serial: t.security_serial,
       status: t.status,
       type_name: t.type_name,
+      phase_name: t.phase_name,
+      unit_price_cop: t.unit_price_cop,
       credential: `pc:${decrypt(t.credential_encrypted)}`,
     }));
     return {
