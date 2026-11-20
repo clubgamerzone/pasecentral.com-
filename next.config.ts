@@ -6,6 +6,9 @@ const config: NextConfig = {
       ? [new URL(process.env.APP_URL).hostname]
       : [],
   // Demo data and secrets must never enter serverless/standalone build artifacts.
+  outputFileTracingIncludes: {
+    "/*": ["./assets/fonts/*.ttf", "./assets/fonts/OFL.txt"],
+  },
   outputFileTracingExcludes: {
     "/*": [
       "./.local/**",

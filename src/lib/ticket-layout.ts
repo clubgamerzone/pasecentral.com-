@@ -2,24 +2,11 @@ import sharp from "sharp";
 import QRCode from "qrcode";
 import type { Row } from "./db";
 import { ticketCounter } from "./ticket-number";
+import { ticketTextPath } from "./ticket-font";
 
-const escape = (value: unknown) =>
-  String(value ?? "").replace(
-    /[&<>"']/g,
-    (c) =>
-      ({
-        "&": "&amp;",
-        "<": "&lt;",
-        ">": "&gt;",
-        '"': "&quot;",
-        "'": "&apos;",
-      })[c]!,
-  );
 function clipped(value: unknown, length: number) {
   const clean = String(value ?? "").replace(/[\r\n\t]/g, " ");
-  return escape(
-    clean.length > length ? `${clean.slice(0, length - 1)}…` : clean,
-  );
+  return clean.length > length ? `${clean.slice(0, length - 1)}…` : clean;
 }
 export type TicketBitmap = { width: 560; height: 320; hex: string };
 export type TicketLayout = {
@@ -64,8 +51,7 @@ export async function renderTicketLayout(
     bold = false,
     anchor = "start",
     max = 70,
-  ) =>
-    `<text x="${x}" y="${y}" font-size="${size}" font-weight="${bold ? 700 : 400}" text-anchor="${anchor}">${clipped(value, max)}</text>`;
+  ) => ticketTextPath(clipped(value, max), x, y, size, bold, anchor);
   const line = (y: number) =>
     `<path d="M56 ${y}H536" stroke="black" stroke-width="1.5"/>`;
   const id = (y: number) =>
@@ -88,7 +74,7 @@ export async function renderTicketLayout(
     (ticket.preprinted === true && ticket.status === "stock")
       ? ""
       : `<rect x="56" y="103" width="480" height="31" fill="white"/>${text(296, 126, 18, ticket.status === "used" ? "ENTRADA UTILIZADA" : "ENTRADA ANULADA", true, "middle")}`;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="640" viewBox="0 0 560 640"><rect width="560" height="640" fill="white"/><g fill="black" font-family="DejaVu Sans,Arial,sans-serif">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="560" height="640" viewBox="0 0 560 640"><rect width="560" height="640" fill="white"/><g fill="black">
  ${text(56, 24, 17, "PASE CENTRAL", true)}${counter ? text(536, 11, 9, "CONTROL DE INGRESO", true, "end") + text(536, 30, 19, `BOLETA N.º ${counter}`, true, "end") : text(536, 24, 12, "CONTROL DE INGRESO", true, "end")}${line(35)}
  <image x="${64 + (176 - qrSize) / 2}" y="${53 + (176 - qrSize) / 2}" width="${qrSize}" height="${qrSize}" href="data:image/png;base64,${qr.toString("base64")}"/>
  ${text(266, 65, 21, String(ticket.type_name).toUpperCase(), true, "start", 22)}
