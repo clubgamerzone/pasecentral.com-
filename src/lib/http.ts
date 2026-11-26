@@ -54,6 +54,13 @@ export function errorResponse(error: unknown) {
     "Operación fallida:",
     error instanceof Error ? error.name : "UnknownError",
     code ?? "",
+    error instanceof Error
+      ? error.stack
+          ?.split("\n")
+          .filter((line) => /^\s+at /.test(line))
+          .slice(0, 4)
+          .join("\n")
+      : "",
   );
   return NextResponse.json(
     {

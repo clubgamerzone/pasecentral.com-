@@ -475,7 +475,8 @@ export function Tickets({
   const selectedTickets: Row[] =
     doc?.tickets.filter(
       (t: Row) =>
-        selectedTicketIds === null || selectedTicketIds.includes(t.id),
+        (preprinted ? t.status === "stock" : t.status === "valid") &&
+        (selectedTicketIds === null || selectedTicketIds.includes(t.id)),
     ) ?? [];
   async function request(format = "json") {
     return fetch(preprinted ? "/api/preprints" : "/api/tickets", {
@@ -789,6 +790,13 @@ export function Tickets({
           aria-label="Seleccionar entradas para imprimir"
         >
           <h3>¿Qué entradas quieres imprimir?</h3>
+          {!preprinted &&
+            doc.tickets.some((t: Row) => t.status !== "valid") && (
+              <p className="notice">
+                Las entradas utilizadas o anuladas no se pueden imprimir. Solo
+                se seleccionan las vigentes.
+              </p>
+            )}
           <p role="status">
             {selectedTickets.length} de {doc.tickets.length} seleccionadas
             {printSettings.paper === "ticket70x40"

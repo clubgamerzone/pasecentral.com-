@@ -117,6 +117,9 @@ it("preimpresa no entra; pago activa exactamente el QR, serial y número y permi
   );
   const key = randomUUID();
   const sale = await activate(paper.credential, { idempotency_key: key });
+  expect(sale.visible_number).toBe(paper.visible_number);
+  expect(sale.event_id).toBe(e1);
+  expect(sale.unit_price_cop).toBe(paper.unit_price_cop);
   const doc = await ticketDocument(db, box, sale.order_id);
   for (const field of [
     "credential",
@@ -139,6 +142,7 @@ it("preimpresa no entra; pago activa exactamente el QR, serial y número y permi
   expect((await scan(paper.credential)).result).toBe("accepted");
   expect((await scan(paper.credential)).result).toBe("already_used");
   const retry = await activate(paper.credential, { idempotency_key: key });
+  expect(retry.visible_number).toBe(paper.visible_number);
   expect(retry.order_id).toBe(sale.order_id);
   await expect(activate(paper.credential)).rejects.toThrow("ya fue vendida");
   expect((await one(db, "SELECT count(*)::int AS n FROM payments")).n).toBe(1);

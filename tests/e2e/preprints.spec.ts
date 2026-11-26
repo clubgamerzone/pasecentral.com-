@@ -118,9 +118,9 @@ test("lote sin activar se imprime sin vender, taquilla confirma pago y acceso lo
     fullPage: true,
   });
   await login(page, "Taquilla demo");
-  await page.goto("/box-office/preprints");
+  await page.goto("/box-office?mode=preprints");
   await page
-    .getByRole("button", { name: "Activar venta", exact: true })
+    .getByRole("button", { name: "Venta con datos / correo", exact: true })
     .click();
   await page
     .getByLabel("Escanea el QR de la boleta sin activar")
@@ -162,6 +162,39 @@ test("lote sin activar se imprime sin vender, taquilla confirma pago y acceso lo
   ).json();
   expect(active.tickets[0].credential).toBe(paper.credential);
   expect(active.tickets[0].visible_number).toBe(paper.visible_number);
+  // Sell the remaining stock directly from the scanner, with the real local API and cash ledger.
+  const opened = await page.request.post("/api/commands", {
+    headers,
+    data: { action: "cash_open", event_id: eventId, opening_cash_cop: 0 },
+  });
+  expect(opened.ok()).toBeTruthy();
+  await page.goto("/box-office?mode=preprints");
+  const rapidResponse = page.waitForResponse(
+    (r) =>
+      r.url().endsWith("/api/commands") &&
+      r.request().postDataJSON()?.action === "preprint_activate",
+  );
+  await page
+    .getByLabel("Escanea para vender y activar")
+    .fill(original.tickets[2].credential);
+  const rapidSale = await (await rapidResponse).json();
+  expect(rapidSale.order_id).toBeTruthy();
+  await expect(page.locator(".scan-result")).toContainText("Venta confirmada");
+  await expect(page.getByLabel("Escanea para vender y activar")).toHaveValue(
+    "",
+  );
+  const rapidDoc = await (
+    await page.request.post("/api/tickets", {
+      headers,
+      data: { order_id: rapidSale.order_id },
+    })
+  ).json();
+  expect(rapidDoc.tickets[0].credential).toBe(original.tickets[2].credential);
+  expect(rapidDoc.tickets[0].status).toBe("valid");
+  await page.screenshot({
+    path: "test-results/preprint-quick-sale-mobile.png",
+    fullPage: true,
+  });
   await login(page, "Acceso demo");
   const noInventory = await page.request.get(
     `/api/preprints?event_id=${eventId}`,
@@ -180,6 +213,25 @@ test("lote sin activar se imprime sin vender, taquilla confirma pago y acceso lo
     });
   expect((await (await scan()).json()).result).toBe("accepted");
   expect((await (await scan()).json()).result).toBe("already_used");
+  await login(page, "Taquilla demo");
+  await page.goto(`/tickets/${orderId}`);
+  await expect(
+    page.getByRole("checkbox", {
+      name: `Imprimir boleta ${paper.visible_number}`,
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", {
+      name: "Imprimir seleccionadas (0)",
+      exact: true,
+    }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Las entradas utilizadas o anuladas no se pueden imprimir. Solo se seleccionan las vigentes.",
+    ),
+  ).toBeVisible();
 });
 
 test("gestor desactiva y elimina boletas desde vista previa e inventario sin reutilizar sus QR", async ({

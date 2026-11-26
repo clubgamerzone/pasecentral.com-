@@ -59,6 +59,7 @@ type Context = {
     body: Row,
     success?: string,
     onError?: (message: string) => void,
+    refreshAfter?: boolean,
   ) => Promise<Row | null>;
   refresh: () => Promise<void>;
   navigate: (path: string) => void;
@@ -301,6 +302,7 @@ export function App() {
     body: Row,
     success = "Operación guardada",
     onError?: (message: string) => void,
+    refreshAfter = true,
   ) {
     setBusy(true);
     try {
@@ -317,6 +319,7 @@ export function App() {
         );
       // Printing only changes its audit trail; the ticket and dashboard data stay current.
       if (
+        refreshAfter &&
         ![
           "print_request",
           "print_batch_request",

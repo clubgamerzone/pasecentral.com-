@@ -157,6 +157,13 @@ export async function preprintCommand(
     ]);
     await allowed(tx, a, p);
     if (c.action === "preprint_lookup") return safe(p);
+    const metadata = {
+      event_id: p.event_id,
+      visible_number: p.visible_number,
+      event_sequence: p.event_sequence,
+      unit_price_cop: p.unit_price_cop,
+      type_name: p.type_name,
+    };
     if (p.status === "activated") {
       const original = await one(
         tx,
@@ -167,7 +174,7 @@ export async function preprintCommand(
         original.created_by === a.id &&
         original.idempotency_key === c.idempotency_key
       )
-        return { order_id: original.id, already_processed: true };
+        return { order_id: original.id, already_processed: true, ...metadata };
       fail("Esta boleta ya fue vendida y activada. No vuelvas a cobrarla", 409);
     }
     if (p.status !== "stock")
@@ -205,7 +212,7 @@ export async function preprintCommand(
     await audit(tx, a, "preprint_activated", "preprinted_ticket", p.id, {
       order_id: result.order_id,
     });
-    return result;
+    return { ...result, ...metadata };
   }
   if (
     c.action === "preprint_block" ||

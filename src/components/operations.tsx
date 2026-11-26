@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { Preprints } from "./preprints";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InviteTeam } from "./account";
 import { TeamEditor } from "./team-editor";
@@ -706,6 +708,10 @@ export function UserManagement({ eventId }: { eventId?: string }) {
 }
 export function BoxOffice() {
   const { data, run, busy, navigate } = useApp();
+  const params = useSearchParams();
+  const [preprinted, setPreprinted] = useState(
+    params.get("mode") === "preprints",
+  );
   const [openingCash, setOpeningCash] = useState(false);
   const [people, setPeople] = useState<Record<string, Attendee>>({}),
     [consent, setConsent] = useState(false);
@@ -746,205 +752,228 @@ export function BoxOffice() {
         title="Taquilla, sin filas de más"
         subtitle="Registra el cobro y emite cada entrada en una sola operación."
       />
-      <div className="split">
-        <section className="panel">
-          <Field name="active-event" label="Evento activo">
-            <select
-              id="active-event"
-              value={event}
-              onChange={(e) => {
-                setEvent(e.target.value);
-                setQuantities({});
-                setKey(browserId());
+      <div className="buttons" style={{ marginBottom: 20 }}>
+        <button
+          className={`btn ${!preprinted ? "primary" : "secondary"}`}
+          disabled={busy}
+          onClick={() => setPreprinted(false)}
+        >
+          Vender entrada nueva
+        </button>
+        <button
+          className={`btn ${preprinted ? "primary" : "secondary"}`}
+          disabled={busy}
+          onClick={() => setPreprinted(true)}
+        >
+          Escanear boleta preimpresa
+        </button>
+      </div>
+      {preprinted ? (
+        <Preprints salesOnly />
+      ) : (
+        <div className="split">
+          <section className="panel">
+            <Field name="active-event" label="Evento activo">
+              <select
+                id="active-event"
+                value={event}
+                onChange={(e) => {
+                  setEvent(e.target.value);
+                  setQuantities({});
+                  setKey(browserId());
+                }}
+              >
+                {data.events
+                  .filter((e) => data.permissions.sell.includes(e.id))
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+            {e && (
+              <p className="helper">
+                {e.available === null
+                  ? "Sin límite de aforo total"
+                  : `${e.available} lugares disponibles`}{" "}
+                · {e.venue_name}
+                {e.minimum_age > 0
+                  ? ` · Edad mínima: ${e.minimum_age} años`
+                  : " · Todas las edades"}
+              </p>
+            )}
+            <h3 style={{ marginTop: 27 }}>Selecciona las entradas</h3>
+            {prices.map(({ t, p }) => (
+              <div className="buy-line" key={t.id}>
+                <div>
+                  <b>{t.name}</b>
+                  <p>
+                    {method === "complimentary"
+                      ? "Cortesía autorizada"
+                      : p
+                        ? `${p.name} · ${money(p.price_cop)}`
+                        : "Sin precio vigente"}
+                  </p>
+                  <p>
+                    {t.capacity === null
+                      ? "Disponibilidad ilimitada"
+                      : `${Math.max(0, t.capacity - t.committed)} disponibles`}
+                  </p>
+                </div>
+                <select
+                  aria-label={`Cantidad ${t.name}`}
+                  value={quantities[t.id] ?? 0}
+                  onChange={(e) =>
+                    setQuantities({
+                      ...quantities,
+                      [t.id]: Number(e.target.value),
+                    })
+                  }
+                >
+                  {Array.from({ length: 21 }, (_, n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </section>
+          <section className="panel">
+            <h2>Cobro y emisión</h2>
+            {method === "cash" && !session && (
+              <div className="notice" style={{ marginTop: 18 }}>
+                Abre tu caja para vender en efectivo.{" "}
+                <button
+                  type="button"
+                  className="btn small"
+                  disabled={!e || busy}
+                  onClick={() => setOpeningCash(true)}
+                >
+                  Abrir caja
+                </button>
+              </div>
+            )}
+            {method === "cash" && session && (
+              <p className="helper" role="status">
+                Caja abierta para este evento.
+              </p>
+            )}
+            {openingCash && e && (
+              <OpenCashDialog
+                key={e.id}
+                event={e}
+                onClose={() => setOpeningCash(false)}
+              />
+            )}
+            <form
+              style={{ marginTop: 22 }}
+              onSubmit={async (ev) => {
+                ev.preventDefault();
+                const b: Row = formValues(ev.currentTarget);
+                const r = await run(
+                  {
+                    action: "sell",
+                    event_id: event,
+                    items: attendeeItems(quantities, people, consent),
+                    demographics_consent: consent,
+                    ...b,
+                    method,
+                    verified: b.verified === "on",
+                    idempotency_key: key,
+                  },
+                  "Venta confirmada. Entradas emitidas.",
+                );
+                if (r) {
+                  setKey(browserId());
+                  navigate(`/tickets/${r.order_id}`);
+                }
               }}
             >
-              {data.events
-                .filter((e) => data.permissions.sell.includes(e.id))
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          {e && (
-            <p className="helper">
-              {e.available === null
-                ? "Sin límite de aforo total"
-                : `${e.available} lugares disponibles`}{" "}
-              · {e.venue_name}
-              {e.minimum_age > 0
-                ? ` · Edad mínima: ${e.minimum_age} años`
-                : " · Todas las edades"}
-            </p>
-          )}
-          <h3 style={{ marginTop: 27 }}>Selecciona las entradas</h3>
-          {prices.map(({ t, p }) => (
-            <div className="buy-line" key={t.id}>
-              <div>
-                <b>{t.name}</b>
-                <p>
-                  {method === "complimentary"
-                    ? "Cortesía autorizada"
-                    : p
-                      ? `${p.name} · ${money(p.price_cop)}`
-                      : "Sin precio vigente"}
-                </p>
-                <p>
-                  {t.capacity === null
-                    ? "Disponibilidad ilimitada"
-                    : `${Math.max(0, t.capacity - t.committed)} disponibles`}
-                </p>
+              <div className="section-stack">
+                <Field name="method" label="Medio de cobro">
+                  <select
+                    id="method"
+                    value={method}
+                    onChange={(e) => setMethod(e.target.value)}
+                  >
+                    <option value="cash">Efectivo</option>
+                    <option value="transfer">Transferencia verificada</option>
+                    {data.permissions.manage.includes(event) && (
+                      <option value="complimentary">Cortesía autorizada</option>
+                    )}
+                  </select>
+                </Field>
+                <Field
+                  name="buyer_name"
+                  label="Nombre del comprador (opcional)"
+                  required={false}
+                />
+                <Field
+                  name="buyer_email"
+                  label="Email para entrega digital (opcional)"
+                  type="email"
+                  required={false}
+                />
+                <Field
+                  name="buyer_phone"
+                  label="Teléfono (opcional)"
+                  required={false}
+                />
+                <Field
+                  name="buyer_category"
+                  label="Categoría de comprador (opcional)"
+                  required={false}
+                />
+                {method === "transfer" && (
+                  <>
+                    <Field
+                      name="reference"
+                      label="Referencia de transferencia"
+                    />
+                    <label className="inline-check">
+                      <input name="verified" type="checkbox" required />
+                      Confirmé el importe en la cuenta del comercio
+                    </label>
+                  </>
+                )}
+                {method === "complimentary" && (
+                  <Field name="reason" label="Motivo de la cortesía" />
+                )}
               </div>
-              <select
-                aria-label={`Cantidad ${t.name}`}
-                value={quantities[t.id] ?? 0}
-                onChange={(e) =>
-                  setQuantities({
-                    ...quantities,
-                    [t.id]: Number(e.target.value),
-                  })
+              <AttendeeFields
+                types={types}
+                quantities={quantities}
+                people={people}
+                onChange={setPeople}
+                consent={consent}
+                onConsent={setConsent}
+              />
+              <div className="summary-line total">
+                <span>Total</span>
+                <span>{money(total)}</span>
+              </div>
+              <p className="helper">
+                La cuenta de comprador no se asigna por un email escrito en
+                taquilla. El contacto solo se usa para entrega digital.
+              </p>
+              <button
+                className="btn primary"
+                style={{ width: "100%", marginTop: 20 }}
+                disabled={
+                  busy ||
+                  (method === "cash" && !session) ||
+                  e?.status !== "published"
                 }
               >
-                {Array.from({ length: 21 }, (_, n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </section>
-        <section className="panel">
-          <h2>Cobro y emisión</h2>
-          {method === "cash" && !session && (
-            <div className="notice" style={{ marginTop: 18 }}>
-              Abre tu caja para vender en efectivo.{" "}
-              <button
-                type="button"
-                className="btn small"
-                disabled={!e || busy}
-                onClick={() => setOpeningCash(true)}
-              >
-                Abrir caja
+                <Ticket />
+                Confirmar cobro y emitir
               </button>
-            </div>
-          )}
-          {method === "cash" && session && (
-            <p className="helper" role="status">
-              Caja abierta para este evento.
-            </p>
-          )}
-          {openingCash && e && (
-            <OpenCashDialog
-              key={e.id}
-              event={e}
-              onClose={() => setOpeningCash(false)}
-            />
-          )}
-          <form
-            style={{ marginTop: 22 }}
-            onSubmit={async (ev) => {
-              ev.preventDefault();
-              const b: Row = formValues(ev.currentTarget);
-              const r = await run(
-                {
-                  action: "sell",
-                  event_id: event,
-                  items: attendeeItems(quantities, people, consent),
-                  demographics_consent: consent,
-                  ...b,
-                  method,
-                  verified: b.verified === "on",
-                  idempotency_key: key,
-                },
-                "Venta confirmada. Entradas emitidas.",
-              );
-              if (r) {
-                setKey(browserId());
-                navigate(`/tickets/${r.order_id}`);
-              }
-            }}
-          >
-            <div className="section-stack">
-              <Field name="method" label="Medio de cobro">
-                <select
-                  id="method"
-                  value={method}
-                  onChange={(e) => setMethod(e.target.value)}
-                >
-                  <option value="cash">Efectivo</option>
-                  <option value="transfer">Transferencia verificada</option>
-                  {data.permissions.manage.includes(event) && (
-                    <option value="complimentary">Cortesía autorizada</option>
-                  )}
-                </select>
-              </Field>
-              <Field
-                name="buyer_name"
-                label="Nombre del comprador (opcional)"
-                required={false}
-              />
-              <Field
-                name="buyer_email"
-                label="Email para entrega digital (opcional)"
-                type="email"
-                required={false}
-              />
-              <Field
-                name="buyer_phone"
-                label="Teléfono (opcional)"
-                required={false}
-              />
-              <Field
-                name="buyer_category"
-                label="Categoría de comprador (opcional)"
-                required={false}
-              />
-              {method === "transfer" && (
-                <>
-                  <Field name="reference" label="Referencia de transferencia" />
-                  <label className="inline-check">
-                    <input name="verified" type="checkbox" required />
-                    Confirmé el importe en la cuenta del comercio
-                  </label>
-                </>
-              )}
-              {method === "complimentary" && (
-                <Field name="reason" label="Motivo de la cortesía" />
-              )}
-            </div>
-            <AttendeeFields
-              types={types}
-              quantities={quantities}
-              people={people}
-              onChange={setPeople}
-              consent={consent}
-              onConsent={setConsent}
-            />
-            <div className="summary-line total">
-              <span>Total</span>
-              <span>{money(total)}</span>
-            </div>
-            <p className="helper">
-              La cuenta de comprador no se asigna por un email escrito en
-              taquilla. El contacto solo se usa para entrega digital.
-            </p>
-            <button
-              className="btn primary"
-              style={{ width: "100%", marginTop: 20 }}
-              disabled={
-                busy ||
-                (method === "cash" && !session) ||
-                e?.status !== "published"
-              }
-            >
-              <Ticket />
-              Confirmar cobro y emitir
-            </button>
-          </form>
-        </section>
-      </div>
+            </form>
+          </section>
+        </div>
+      )}
     </>
   );
 }
@@ -1194,6 +1223,8 @@ export function Access() {
         gate_label: gate,
       },
       "",
+      undefined,
+      false,
     );
     if (r) {
       setResult(r);
@@ -1517,6 +1548,7 @@ export function Orders({
                       <th>Serial</th>
                       <th>Localidad</th>
                       <th>Estado</th>
+                      <th>Impresión</th>
                       <th>Acciones</th>
                     </tr>
                   </thead>
@@ -1544,6 +1576,21 @@ export function Orders({
                           <td>{t.type_name}</td>
                           <td>
                             <Badge status={t.status} />
+                          </td>
+                          <td>
+                            {t.status === "valid" ? (
+                              <Link
+                                className="btn small"
+                                href={`/tickets/${order.id}`}
+                              >
+                                Ver impresión
+                              </Link>
+                            ) : (
+                              <span className="helper">
+                                {t.status === "used" ? "Utilizada" : "Anulada"}{" "}
+                                · impresión bloqueada
+                              </span>
+                            )}
                           </td>
                           <td>
                             {data.permissions.manage.includes(order.event_id) &&

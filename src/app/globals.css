@@ -1221,6 +1221,9 @@ textarea {
 .scan-popup.accepted {
   background: #14532d;
 }
+.preprint-sale-popup p {
+  color: white;
+}
 .scan-popup h2 {
   font-size: 28px;
   margin-bottom: 12px;

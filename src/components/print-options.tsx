@@ -278,11 +278,16 @@ export function PaperTickets({
                 <input
                   type="checkbox"
                   checked={selectedIds?.includes(t.id) ?? false}
-                  disabled={selectionDisabled}
+                  disabled={
+                    selectionDisabled ||
+                    (t.preprinted ? t.status !== "stock" : t.status !== "valid")
+                  }
                   onChange={() => onToggle(t.id)}
                   aria-label={`Imprimir boleta ${t.visible_number}`}
                 />
-                Incluir en impresión
+                {(t.preprinted ? t.status === "stock" : t.status === "valid")
+                  ? "Incluir en impresión"
+                  : "Impresión bloqueada: entrada utilizada o anulada"}
               </label>
             )}
             {onManage && (

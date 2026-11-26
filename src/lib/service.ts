@@ -338,12 +338,15 @@ export async function createOrder(
   if (!Number.isSafeInteger(total) || total > 100000000)
     fail("Importe fuera del límite");
   let cash: Row | undefined;
-  if (!web && c.method === "cash")
-    cash = await one(
-      tx,
-      "SELECT * FROM cash_sessions WHERE event_id=$1 AND operator_id=$2 AND closed_at IS NULL FOR UPDATE",
-      [e.id, a.id],
-    );
+  if (!web && c.method === "cash") {
+    cash = (
+      await tx.query(
+        "SELECT * FROM cash_sessions WHERE event_id=$1 AND operator_id=$2 AND closed_at IS NULL FOR UPDATE",
+        [e.id, a.id],
+      )
+    ).rows[0];
+    if (!cash) fail("Abre la caja de este evento antes de cobrar en efectivo");
+  }
   const minutes = Math.min(
     60,
     Math.max(1, Number(process.env.RESERVATION_MINUTES ?? 10)),
@@ -1160,13 +1163,20 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "cash_open": {
         await permit(tx, a, c.event_id, "sell");
         await lockEvent(tx, c.event_id);
+        const existing = (
+          await tx.query(
+            "SELECT id FROM cash_sessions WHERE event_id=$1 AND operator_id=$2 AND closed_at IS NULL FOR UPDATE",
+            [c.event_id, a.id],
+          )
+        ).rows[0];
+        if (existing) return { session_id: existing.id, already_open: true };
         const s = await one(
           tx,
           "INSERT INTO cash_sessions(event_id,operator_id,opening_cash_cop) VALUES($1,$2,$3) RETURNING id",
           [c.event_id, a.id, c.opening_cash_cop],
         );
         await audit(tx, a, "cash_opened", "cash_session", s.id);
-        return {};
+        return { session_id: s.id, already_open: false };
       }
       case "cash_move":
       case "cash_close": {
@@ -1349,7 +1359,7 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
       case "print_batch_request": {
         const tickets = (
           await tx.query(
-            "SELECT id,event_id FROM tickets WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",
+            "SELECT id,event_id,status FROM tickets WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",
             [c.ticket_ids],
           )
         ).rows;
@@ -1357,6 +1367,11 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
           fail("Una de las entradas no existe", 404);
         for (const eventId of new Set(tickets.map((t) => t.event_id)))
           await permit(tx, a, eventId, "sell");
+        if (tickets.some((t) => t.status !== "valid"))
+          fail(
+            "Solo puedes imprimir entradas vigentes: hay entradas utilizadas o anuladas en la selección",
+            409,
+          );
         const jobs = (
           await tx.query(
             `INSERT INTO print_jobs(ticket_id,operator_id,status,is_reprint)
@@ -1376,10 +1391,17 @@ export async function execute(db: DB, a: Actor, input: unknown): Promise<Row> {
         return { jobs };
       }
       case "print_request": {
-        const t = await one(tx, "SELECT * FROM tickets WHERE id=$1", [
-          c.ticket_id,
-        ]);
+        const t = await one(
+          tx,
+          "SELECT * FROM tickets WHERE id=$1 FOR UPDATE",
+          [c.ticket_id],
+        );
         await permit(tx, a, t.event_id, "sell");
+        if (t.status !== "valid")
+          fail(
+            "Esta entrada está utilizada o anulada y no se puede imprimir",
+            409,
+          );
         const prior =
           (
             await tx.query("SELECT 1 FROM print_jobs WHERE ticket_id=$1", [

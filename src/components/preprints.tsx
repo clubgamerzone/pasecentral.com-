@@ -8,18 +8,21 @@ import type { Row } from "@/lib/db";
 import { OpenCashDialog } from "./cash-opening";
 import { ticketCounter } from "@/lib/ticket-number";
 import { PreprintActionDialog } from "./preprint-actions";
+import { PreprintQuickSale } from "./preprint-quick-sale";
 
-export function Preprints() {
+export function Preprints({ salesOnly = false }: { salesOnly?: boolean }) {
   const { data, run, busy, navigate } = useApp();
-  const initialEvent = useSearchParams().get("event");
+  const params = useSearchParams();
+  const initialEvent = params.get("event");
+  const [quick, setQuick] = useState(true);
   const [event, setEvent] = useState(
     data.permissions.sell.includes(initialEvent ?? "")
       ? initialEvent!
       : (data.permissions.sell[0] ?? ""),
   );
   const [inventory, setInventory] = useState<Row | null>(null),
-    [error, setError] = useState(""),
-    [mode, setMode] = useState<"stock" | "activate">("stock");
+    [error, setError] = useState("");
+  const mode = salesOnly ? "activate" : "stock";
   const [typeId, setTypeId] = useState(""),
     [phaseId, setPhaseId] = useState(""),
     [block, setBlock] = useState<Row | null>(null);
@@ -41,6 +44,7 @@ export function Preprints() {
     return b;
   }, [event]);
   useEffect(() => {
+    if (salesOnly) return;
     let active = true;
     load()
       .then((b) => {
@@ -55,7 +59,7 @@ export function Preprints() {
     return () => {
       active = false;
     };
-  }, [load]);
+  }, [load, salesOnly]);
   const refresh = async () => {
     setError("");
     try {
@@ -90,58 +94,50 @@ export function Preprints() {
   }
   return (
     <>
-      <Heading
-        title="Boletas preimpresas"
-        subtitle="Prepara papel sin activar; registra la venta para habilitar el ingreso."
-      />
-      <section className="panel no-print" style={{ marginBottom: 20 }}>
-        {mode === "stock" && (
-          <Field name="preprint-event" label="Evento del inventario">
-            <select
-              id="preprint-event"
-              value={event}
-              onChange={(e) => {
-                setEvent(e.target.value);
-                setInventory(null);
-                setFound(null);
-                setCredential("");
-                setTypeId("");
-                setPhaseId("");
-                setBlock(null);
-                setCreateKey(browserId());
-              }}
-            >
-              {data.events
-                .filter((e) => data.permissions.sell.includes(e.id))
-                .map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.title}
-                  </option>
-                ))}
-            </select>
-          </Field>
-        )}
-        <div className="buttons" style={{ marginTop: 16 }}>
-          <button
-            className={`btn ${mode === "stock" ? "primary" : ""}`}
-            onClick={() => setMode("stock")}
-          >
-            Inventario y lotes
-          </button>
-          <button
-            className={`btn ${mode === "activate" ? "primary" : ""}`}
-            onClick={() => {
-              setMode("activate");
-              setTimeout(() => input.current?.focus(), 0);
-            }}
-          >
-            Activar venta
-          </button>
-          <button className="btn" disabled={busy} onClick={refresh}>
-            Actualizar inventario
-          </button>
-        </div>
-      </section>
+      {!salesOnly && (
+        <Heading
+          title="Boletas preimpresas"
+          subtitle="Administra, imprime y controla tus lotes. Para venderlos, usa el lector dentro de Taquilla."
+        />
+      )}
+      {!salesOnly && (
+        <section className="panel no-print" style={{ marginBottom: 20 }}>
+          {mode === "stock" && (
+            <Field name="preprint-event" label="Evento del inventario">
+              <select
+                id="preprint-event"
+                value={event}
+                onChange={(e) => {
+                  setEvent(e.target.value);
+                  setInventory(null);
+                  setFound(null);
+                  setCredential("");
+                  setTypeId("");
+                  setPhaseId("");
+                  setBlock(null);
+                  setCreateKey(browserId());
+                }}
+              >
+                {data.events
+                  .filter((e) => data.permissions.sell.includes(e.id))
+                  .map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.title}
+                    </option>
+                  ))}
+              </select>
+            </Field>
+          )}
+          <div className="buttons" style={{ marginTop: 16 }}>
+            <Link className="btn secondary" href="/box-office?mode=preprints">
+              Ir al lector de Taquilla
+            </Link>
+            <button className="btn" disabled={busy} onClick={refresh}>
+              Actualizar inventario
+            </button>
+          </div>
+        </section>
+      )}
       {error && (
         <p className="notice error" role="alert">
           {error}
@@ -149,167 +145,193 @@ export function Preprints() {
       )}
       {mode === "activate" ? (
         <section className="panel" aria-label="Venta de boleta preimpresa">
-          <h2>Activar venta de una boleta</h2>
-          <p className="notice">
-            Escanear aquí solo consulta. Confirma el pago para activar. Este
-            proceso no registra ingreso al evento.
-          </p>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void lookup();
-            }}
-          >
-            <label htmlFor="preprint-scan">
-              Escanea el QR de la boleta sin activar
-            </label>
-            <input
-              ref={input}
-              id="preprint-scan"
-              value={credential}
-              onChange={(e) => {
-                setCredential(e.target.value);
-                setFound(null);
-              }}
-              autoComplete="off"
-              disabled={busy}
-              spellCheck={false}
-              required
-            />
+          <h2>Escanear boleta preimpresa</h2>
+          <div className="buttons" style={{ margin: "16px 0" }}>
             <button
-              className="btn secondary"
-              disabled={busy || !credential.trim()}
-              style={{ marginTop: 12 }}
+              type="button"
+              className={`btn ${quick ? "primary" : ""}`}
+              disabled={busy}
+              onClick={() => setQuick(true)}
             >
-              Consultar boleta
+              Venta rápida al escanear
             </button>
-          </form>
-          {found && (
-            <div style={{ marginTop: 24 }}>
-              <h3>
-                Boleta N.º {ticketCounter(found.event_sequence)} ·{" "}
-                {found.type_name}
-              </h3>
-              <p>
-                {data.events.find((e) => e.id === found.event_id)?.title} ·{" "}
-                {found.batch_name}
+            <button
+              type="button"
+              className={`btn ${!quick ? "primary" : ""}`}
+              disabled={busy}
+              onClick={() => setQuick(false)}
+            >
+              Venta con datos / correo
+            </button>
+          </div>
+          {quick ? (
+            <PreprintQuickSale />
+          ) : (
+            <>
+              <p className="notice">
+                Escanear aquí solo consulta. Confirma el pago para activar. Este
+                proceso no registra ingreso al evento.
               </p>
-              <div className="summary-line total">
-                <span>Precio impreso · {found.phase_name}</span>
-                <b>{money(found.unit_price_cop)}</b>
-              </div>
-              {found.status !== "stock" ? (
-                <p role="alert" className="notice error">
-                  {found.status === "activated"
-                    ? "Ya fue vendida y activada. No la cobres otra vez."
-                    : "Boleta bloqueada: no se puede vender ni usar."}
-                </p>
-              ) : (
-                <form
-                  onSubmit={async (e) => {
-                    e.preventDefault();
-                    const f = new FormData(e.currentTarget);
-                    const r = await run(
-                      {
-                        action: "preprint_activate",
-                        credential,
-                        method,
-                        verified: f.get("verified") === "on",
-                        reference: String(f.get("reference") ?? ""),
-                        buyer_name: String(f.get("buyer_name") ?? ""),
-                        buyer_email: digital
-                          ? String(f.get("buyer_email") ?? "")
-                          : "",
-                        buyer_phone: String(f.get("buyer_phone") ?? ""),
-                        idempotency_key: saleKey,
-                      },
-                      "Venta confirmada. Boleta activada; todavía no ha ingresado.",
-                    );
-                    if (r) navigate(`/tickets/${r.order_id}`);
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void lookup();
+                }}
+              >
+                <label htmlFor="preprint-scan">
+                  Escanea el QR de la boleta sin activar
+                </label>
+                <input
+                  ref={input}
+                  id="preprint-scan"
+                  value={credential}
+                  onChange={(e) => {
+                    setCredential(e.target.value);
+                    setFound(null);
                   }}
+                  autoComplete="off"
+                  disabled={busy}
+                  spellCheck={false}
+                  required
+                />
+                <button
+                  className="btn secondary"
+                  disabled={busy || !credential.trim()}
+                  style={{ marginTop: 12 }}
                 >
-                  <label htmlFor="preprint-method">
-                    Medio de pago de la activación
-                  </label>
-                  <select
-                    id="preprint-method"
-                    value={method}
-                    onChange={(e) => setMethod(e.target.value)}
-                  >
-                    <option value="cash">Efectivo</option>
-                    <option value="transfer">Transferencia verificada</option>
-                  </select>
-                  {method === "cash" && !session && (
-                    <div className="notice">
-                      Necesitas caja abierta para cobrar efectivo.
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setCash(true)}
+                  Consultar boleta
+                </button>
+              </form>
+              {found && (
+                <div style={{ marginTop: 24 }}>
+                  <h3>
+                    Boleta N.º {ticketCounter(found.event_sequence)} ·{" "}
+                    {found.type_name}
+                  </h3>
+                  <p>
+                    {data.events.find((e) => e.id === found.event_id)?.title} ·{" "}
+                    {found.batch_name}
+                  </p>
+                  <div className="summary-line total">
+                    <span>Precio impreso · {found.phase_name}</span>
+                    <b>{money(found.unit_price_cop)}</b>
+                  </div>
+                  {found.status !== "stock" ? (
+                    <p role="alert" className="notice error">
+                      {found.status === "activated"
+                        ? "Ya fue vendida y activada. No la cobres otra vez."
+                        : "Boleta bloqueada: no se puede vender ni usar."}
+                    </p>
+                  ) : (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const f = new FormData(e.currentTarget);
+                        const r = await run(
+                          {
+                            action: "preprint_activate",
+                            credential,
+                            method,
+                            verified: f.get("verified") === "on",
+                            reference: String(f.get("reference") ?? ""),
+                            buyer_name: String(f.get("buyer_name") ?? ""),
+                            buyer_email: digital
+                              ? String(f.get("buyer_email") ?? "")
+                              : "",
+                            buyer_phone: String(f.get("buyer_phone") ?? ""),
+                            idempotency_key: saleKey,
+                          },
+                          "Venta confirmada. Boleta activada; todavía no ha ingresado.",
+                        );
+                        if (r) navigate(`/tickets/${r.order_id}`);
+                      }}
+                    >
+                      <label htmlFor="preprint-method">
+                        Medio de pago de la activación
+                      </label>
+                      <select
+                        id="preprint-method"
+                        value={method}
+                        onChange={(e) => setMethod(e.target.value)}
                       >
-                        Abrir caja
-                      </button>
-                    </div>
-                  )}
-                  {method === "transfer" && (
-                    <>
+                        <option value="cash">Efectivo</option>
+                        <option value="transfer">
+                          Transferencia verificada
+                        </option>
+                      </select>
+                      {method === "cash" && !session && (
+                        <div className="notice">
+                          Necesitas caja abierta para cobrar efectivo.
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => setCash(true)}
+                          >
+                            Abrir caja
+                          </button>
+                        </div>
+                      )}
+                      {method === "transfer" && (
+                        <>
+                          <Field
+                            name="reference"
+                            label="Referencia de la transferencia"
+                            required
+                          />
+                          <label className="ticket-print-choice">
+                            <input type="checkbox" name="verified" required />
+                            Verifiqué el importe en la cuenta del comercio
+                          </label>
+                        </>
+                      )}
                       <Field
-                        name="reference"
-                        label="Referencia de la transferencia"
-                        required
+                        name="buyer_name"
+                        label="Nombre del comprador (opcional)"
+                        required={false}
+                      />
+                      <Field
+                        name="buyer_phone"
+                        label="Teléfono del comprador (opcional)"
+                        required={false}
                       />
                       <label className="ticket-print-choice">
-                        <input type="checkbox" name="verified" required />
-                        Verifiqué el importe en la cuenta del comercio
+                        <input
+                          type="checkbox"
+                          checked={digital}
+                          onChange={(e) => setDigital(e.target.checked)}
+                        />
+                        Enviar también el PDF por correo
                       </label>
-                    </>
+                      {digital && (
+                        <Field
+                          name="buyer_email"
+                          label="Correo para entrega digital"
+                          type="email"
+                          required
+                        />
+                      )}
+                      <p className="helper">
+                        La venta usa el precio fijo del lote, aunque cambien las
+                        fases. El papel y el PDF representan la misma entrada y
+                        un solo ingreso.
+                      </p>
+                      <button
+                        className="btn primary"
+                        disabled={busy || (method === "cash" && !session)}
+                      >
+                        Confirmar cobro y activar boleta
+                      </button>
+                    </form>
                   )}
-                  <Field
-                    name="buyer_name"
-                    label="Nombre del comprador (opcional)"
-                    required={false}
-                  />
-                  <Field
-                    name="buyer_phone"
-                    label="Teléfono del comprador (opcional)"
-                    required={false}
-                  />
-                  <label className="ticket-print-choice">
-                    <input
-                      type="checkbox"
-                      checked={digital}
-                      onChange={(e) => setDigital(e.target.checked)}
-                    />
-                    Enviar también el PDF por correo
-                  </label>
-                  {digital && (
-                    <Field
-                      name="buyer_email"
-                      label="Correo para entrega digital"
-                      type="email"
-                      required
-                    />
-                  )}
-                  <p className="helper">
-                    La venta usa el precio fijo del lote, aunque cambien las
-                    fases. El papel y el PDF representan la misma entrada y un
-                    solo ingreso.
-                  </p>
-                  <button
-                    className="btn primary"
-                    disabled={busy || (method === "cash" && !session)}
-                  >
-                    Confirmar cobro y activar boleta
-                  </button>
-                </form>
+                </div>
               )}
-            </div>
-          )}
-          {cash && found && (
-            <OpenCashDialog
-              event={data.events.find((e) => e.id === found.event_id)!}
-              onClose={() => setCash(false)}
-            />
+              {cash && found && (
+                <OpenCashDialog
+                  event={data.events.find((e) => e.id === found.event_id)!}
+                  onClose={() => setCash(false)}
+                />
+              )}
+            </>
           )}
         </section>
       ) : (

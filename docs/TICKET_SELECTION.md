@@ -1,5 +1,13 @@
 # Selección de boletas y consecutivo visible (2026-11-20)
 
+## Actualización: impedir impresión de entradas usadas (2026-11-26)
+
+En Gestión del evento → Ventas y entradas → Gestionar una orden, la columna **Impresión** identifica las utilizadas/anuladas como bloqueadas. En la vista de boletas sus casillas quedan deshabilitadas y Seleccionar todas incluye únicamente vigentes. Un aviso explica la exclusión; si no quedan vigentes, el botón de imprimir está deshabilitado.
+
+`print_request` y `print_batch_request` en `src/lib/service.ts` vuelven a comprobar el estado bajo bloqueo de fila. Si una selección antigua contiene usadas/anuladas se rechaza completa con409, sin crear trabajos parciales ni auditorías de impresión. No invalida ventas ni renumera boletas; las preimpresas en stock mantienen su recorrido separado.
+
+Ubicaciones UI: `buyer.tsx`, `print-options.tsx`, `operations.tsx`. Prueba de reglas en `tests/service.test.ts` y recorrido integrado en `tests/e2e/preprints.spec.ts`: vender, ingresar, volver a boletas y comprobar casilla/botón bloqueados. Los documentos históricos PDF/compartidos siguen disponibles con sus estados y el servidor siempre rechaza un segundo ingreso; esta regla controla la impresión solicitada desde la aplicación.
+
 ## Dónde y cómo usarlo
 En Taquilla/Ventas → Ver entradas de la orden, la sección ¿Qué entradas quieres imprimir? muestra cuántas hay seleccionadas y cuántos tramos consumen. Quitar selección desmarca todas; marcar Incluir en impresión debajo de una boleta permite imprimir solo esa. Seleccionar todas recupera el lote. Botón Imprimir seleccionadas (N). Sin selección no permite imprimir; mientras se registra/envía o queda resultado pendiente se bloquea el cambio de selección para no mezclar trabajos.
 

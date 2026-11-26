@@ -1347,6 +1347,34 @@ describe("Validación online y documentos", () => {
     );
     expect((await one(db, "SELECT count(*)::int AS n FROM tickets")).n).toBe(4);
   });
+  it("bloquea impresión individual y lotes con entradas utilizadas o anuladas sin crear trabajos parciales", async () => {
+    const sale = await sell(3);
+    const doc = await ticketDocument(db, box, sale.order_id);
+    await scan(doc.tickets[0].credential);
+    await execute(db, admin, {
+      action: "cancel_ticket",
+      ticket_id: doc.tickets[1].id,
+      reason: "Ensayo de bloqueo de impresión",
+    });
+    for (const ticket of doc.tickets.slice(0, 2))
+      await expect(
+        execute(db, box, { action: "print_request", ticket_id: ticket.id }),
+      ).rejects.toThrow("no se puede imprimir");
+    await expect(
+      execute(db, box, {
+        action: "print_batch_request",
+        ticket_ids: doc.tickets.map((t) => t.id),
+      }),
+    ).rejects.toThrow("Solo puedes imprimir entradas vigentes");
+    expect((await one(db, "SELECT count(*)::int AS n FROM print_jobs")).n).toBe(
+      0,
+    );
+    const printed = await execute(db, box, {
+      action: "print_batch_request",
+      ticket_ids: [doc.tickets[2].id],
+    });
+    expect(printed.jobs).toHaveLength(1);
+  });
   it("documento PDF válido y enlace compartido revocable", async () => {
     const r = await sell(),
       doc = await ticketDocument(db, box, r.order_id);
@@ -1361,6 +1389,46 @@ describe("Validación online y documentos", () => {
   });
 });
 describe("Pagos, entrega y caja", () => {
+  it("repetir apertura devuelve la caja existente sin duplicarla ni cambiar el fondo", async () => {
+    const first = await execute(db, box, {
+      action: "cash_open",
+      event_id: e1,
+      opening_cash_cop: 10000,
+    });
+    const second = await execute(db, box, {
+      action: "cash_open",
+      event_id: e1,
+      opening_cash_cop: 90000,
+    });
+    expect(second.session_id).toBe(first.session_id);
+    expect(second.already_open).toBe(true);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM cash_sessions WHERE event_id=$1 AND operator_id=$2 AND closed_at IS NULL",
+          [e1, box.id],
+        )
+      ).n,
+    ).toBe(1);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT opening_cash_cop FROM cash_sessions WHERE id=$1",
+          [first.session_id],
+        )
+      ).opening_cash_cop,
+    ).toBe(10000);
+    expect(
+      (
+        await one(
+          db,
+          "SELECT count(*)::int AS n FROM audit_logs WHERE action='cash_opened'",
+        )
+      ).n,
+    ).toBe(1);
+  });
   it("correo contiene QR y PDF individual por entrada, reintento congela adjuntos", async () => {
     const r = await reserve(2);
     await paid(r.order_id);
