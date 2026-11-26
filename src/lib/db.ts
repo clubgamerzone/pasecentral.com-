@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { Pool } from "pg";
 import { readFileSync, readdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { demoMode, required } from "./config";
+import { configured, demoMode, required } from "./config";
 // PostgreSQL returns heterogeneous result shapes; validate inputs at the service boundary.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Row = Record<string, any>;
@@ -73,7 +73,11 @@ export async function database(): Promise<DB> {
         await seed(db);
         return db;
       }
-      const ca = process.env.DATABASE_SSL_CA?.replaceAll("\\n", "\n");
+      const ca = (
+        process.env.PASE_CONFIG_PROFILE === "live"
+          ? required("DATABASE_SSL_CA")
+          : configured("DATABASE_SSL_CA")
+      )?.replaceAll("\\n", "\n");
       const url = new URL(required("DATABASE_URL"));
       // pg's URL SSL options override its SSL object, including a supplied CA.
       if (ca)

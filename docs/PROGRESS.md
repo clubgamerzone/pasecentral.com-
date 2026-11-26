@@ -434,3 +434,7 @@ Cuenta creada manualmente por el propietario verificada con correo confirmado. B
 ## Llaves Wompi nuevas reservadas — 2026-11-26
 
 Regeneración manual confirmada por propietario; cuatro secretos WOMPI_LIVE_* actualizados y fechas de guardado verificadas al recargar Vercel. No valores en chat/Git/archivos nuevos. Webhook real preservado. Billing sigue Hobby Active; página preparada para contratación Pro del propietario. Todavía sin corte de variables activas ni cobros reales. Detalle en docs/WOMPI_CUTOVER_2026-11-26.md.
+
+## Dominio propio y perfil live preparados — 2026-11-26
+
+Pro y registro pasecentral.app confirmados en Vercel; dominio vinculado al proyecto y HTTPS/login200 observado. Auth producción Site URL y ocho redirects guardados. Nuevo perfil live en config.ts selecciona estrictamente las reservas de DB/Auth/Wompi/worker/cifrado/remitente y exige tres ambientes de producción. db.ts exige CA en live; proxy redirige alias anteriores al dominio propio sin tocar APIs/POST. Variables Vercel preparadas; publicación y verificación remota siguientes. Suite144pruebas, ocho focalizadas tras prueba adicional TLS, lint/tipos/build aprobados. Procedimiento, mapa de variables y recuperación: docs/PRODUCTION_DOMAIN_2026-11-26.md. No compras, correos o cobros de ensayo en producción.
