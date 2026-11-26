@@ -47,3 +47,21 @@ La primera compra real debe realizarla el propietario en el checkout y verificar
 ## Pruebas
 
 `tests/production-webhook.test.ts`: rechaza configuraciones incompletas o sandbox sin invocar procesador; producción delega y conserva errores de autenticidad. Pruebas de este archivo y `service.test.ts`:63aprobadas. Build aprobado e incluye nueva ruta; lint, comprobación de tipos y diff-check aprobados. No cambios cloud, migraciones, commit/push/despliegue o envíos reales en esta preparación.
+
+## Llaves reales y separación autorizadas — 2026-11-26
+
+El propietario autorizó específicamente guardar las cuatro llaves reales en Vercel y el webhook; confirmó que los registros actuales son pruebas y pidió una base separada. Se guardaron cuatro variables Secret exclusivas de Production en Vercel jd's projects / pasecentral-demo: WOMPI_LIVE_PUBLIC_KEY, WOMPI_LIVE_PRIVATE_KEY, WOMPI_LIVE_EVENTS_SECRET y WOMPI_LIVE_INTEGRITY_SECRET. Son reservas inactivas: el código sigue leyendo WOMPI_PUBLIC_KEY, WOMPI_PRIVATE_KEY, WOMPI_EVENTS_SECRET y WOMPI_INTEGRITY_SECRET existentes, con ambiente sandbox. No modificar su lectura ni WOMPI_ENV hasta corte coordinado a nueva base. Vercel confirmó guardado; no se redeplegó por estos valores todavía.
+
+Wompi Programadores: URL de Eventos guardada y verificada al volver a entrar: https://pasecentral.vercel.app/api/webhooks/wompi/production. Receptor publicado en commit 1c5a94c, Vercel success, devuelve503 hasta habilitar ambiente real. No hubo cobros, transferencias ni correos.
+
+Incidente de manejo: una inspección DOM devolvió accidentalmente valores privados de Wompi en la salida técnica. No se copiaron a archivos/Git; se informó al propietario y se recomienda rotarlos antes de activar producción. La rotación debe completarla el propietario conforme al control de cambios de credenciales; después reemplazar los cuatro secretos LIVE guardados. No incluir valores del incidente en documentación. Variables de memoria del navegador limpiadas tras guardarlas.
+
+Supabase: se abrió New Project en organización clubgamerzone, nombre pasecentral-produccion, región Americas, Data API habilitada, acceso automático de API a nuevas tablas desactivado y RLS automático activado. Contraseña vacía; proyecto aún no creado. El propietario debe introducir/guardar su contraseña y completar creación; nunca pedirla en chat. Organización Free muestra dos proyectos existentes; no se prometió disponibilidad de un tercero ni se contrató plan. No borrar ni pausar otros proyectos sin autorización. Tras creación: conexión privada TLS, migraciones sin seed, Auth/Storage/SMTP, bootstrap, worker, pruebas y corte; aún no realizado.
+
+Vercel permanece Hobby; contratación comercial pendiente. No activar cobros ni afirmar lanzamiento completo antes de resolver hosting, nueva base, rotación y ensayo real del propietario.
+
+## Proyecto nuevo creado — 2026-11-26
+
+Verificación posterior al retorno del propietario: Supabase pasecentral-produccion, ref oslmaxdagamvdeuqxqli, estado Healthy, región ca-central-1. Dashboard indica No migrations; no se ha conectado la app a este proyecto. Site URL configurado a https://pasecentral.vercel.app y cuatro redirects exactos (raíz, /auth/confirm, type=signup, type=recovery); éxito de guardado confirmado. No se copiaron registros del proyecto de pruebas.
+
+Para ejecutar migraciones por conexión TLS falta la contraseña PostgreSQL nueva en el archivo privado ignorado .local/production.env, variable DATABASE_PASSWORD. Se preparó vacío sin reutilizar contraseña de staging. Nunca imprimir el contenido ni pedirlo en chat. Pendientes: conexión TLS, migraciones sin seed, buckets/RLS/Auth/SMTP, administrador inicial, worker, rotación llaves live, hosting comercial y corte de variables. No activar WOMPI_ENV real sobre la base anterior.
