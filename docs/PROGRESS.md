@@ -442,3 +442,11 @@ Pro y registro pasecentral.app confirmados en Vercel; dominio vinculado al proye
 ## Producción publicada bajo pasecentral.app — 2026-11-26
 
 Implementación c7675785b6f3f4632aca7c592cfd4c37eb67b172 desplegada con Vercel success. Sitio HTTPS200, environment=production y demo=false, base limpia confirmados; callback y CSRF verificados, alias/WWW308 al dominio propio, webhook inválido400 sin redirect. Worker real autorizado200 y cero entregas; cron producción activo cada minuto con URL nueva en Vault; cron ensayo pausado, respaldo cifrado verificado. Un admin/organización y cero eventos/órdenes/entradas, tres buckets privados. Sin cargos o correos de ensayo. Pendiente sesión administrativa manual, evento/precios reales y primera compra del propietario. Evidencia y procedimiento: docs/PRODUCTION_DOMAIN_2026-11-26.md.
+
+## Desarrollo local reiniciado — 2026-11-26
+
+Servidor Next.js iniciado en segundo plano, sin ventana visible, con node node_modules/next/dist/bin/next dev --hostname 0.0.0.0 --port 3000 (equivalente a npm run dev:lan). Frontend y API comparten puerto3000. Acceso PC/EDA51: http://192.168.1.15:3000/login. IP Ethernet verificada. /login200 y /api/state200, environment=staging, demo=false; configuración privada local usa proyecto de ensayo y Wompi sandbox, perfil default. No cambios de producción ni publicación. PID de lanzamiento y logs privados en .local/dev-server.json, dev-server.out.log y dev-server.err.log; puerto escuchando confirmado. No se reactivó el cron cloud de staging ni se enviaron emails/pagos para verificar.
+
+## Avisos de cabecera solo fuera de producción — 2026-11-26
+
+src/components/app.tsx agrupa demo/pruebas y Datos del servidor bajo environment distinto de production, para todos los perfiles de la cabecera compartida. Desarrollo LAN conserva ambos avisos, comprobado con Chromium sin interfaz. Lint, build y tipos aprobados. Guía docs/ENVIRONMENT_BADGES.md. Publicación solicitada por el propietario; verificar cabecera pública después del despliegue. No permisos, datos, servicios o cobros modificados.

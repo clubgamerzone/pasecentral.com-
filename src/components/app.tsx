@@ -602,14 +602,16 @@ export function App() {
             </span>
             <div className="top-right">
               {data.environment !== "production" && (
-                <span className="demo-pill">
-                  {data.demo ? "ENTORNO DEMO" : "PRUEBAS CONECTADAS"}
-                </span>
+                <>
+                  <span className="demo-pill">
+                    {data.demo ? "ENTORNO DEMO" : "PRUEBAS CONECTADAS"}
+                  </span>
+                  <span className="status">
+                    <span className="status-dot" />
+                    Datos del servidor
+                  </span>
+                </>
               )}
-              <span className="status">
-                <span className="status-dot" />
-                Datos del servidor
-              </span>
               <Bell size={17} color="#748381" />
               <div className="avatar">
                 {data.actor ? data.actor.name.slice(0, 1) : "PC"}
