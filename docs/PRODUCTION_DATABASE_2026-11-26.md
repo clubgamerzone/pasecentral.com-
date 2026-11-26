@@ -18,9 +18,17 @@ Se ejecutó `npx tsx .local/setup-production.ts` como inspección previa y luego
 
 ## Continuidad
 
-Se dejó el formulario Create a new user del proyecto nuevo con el correo del propietario y contraseña vacía. Debe introducirla y crear su cuenta él mismo; no pedir contraseñas por chat. Después comprobar identidad/correo y ejecutar bootstrap privado para asignar administración inicial. No conceder roles mediante metadata pública. El bootstrap está en `scripts/bootstrap.ts`.
+Actualización posterior al alta manual: cuenta del propietario encontrada y correo confirmado en `auth.users`. Bootstrap privado ejecutado en una transacción con bloqueo de administración inicial y comprobación de ausencia de otros administradores/organizaciones. Quedaron un administrador global y una organización inicial `Pase Central`, sin eventos, órdenes o entradas. No se leyeron ni cambiaron contraseñas. Script e informe privados: `.local/bootstrap-production.ts --apply` y `.local/production-admin-report.json`. El procedimiento aplica la misma asignación explícita de `scripts/bootstrap.ts`, agregando verificación de correo, `auth_user_id` y guardia de concurrencia.
 
-Antes del corte faltan el administrador, worker del proyecto nuevo, verificación operativa, rotación de llaves Wompi tras la exposición técnica ya comunicada, comprobación del hosting comercial y sustitución coordinada de variables activas. No rotar las claves de entradas del ambiente anterior ni activar dinero real sobre la base de ensayo. La app pública sigue usando el ambiente anterior; esta preparación no acredita una compra real ni recepción efectiva de correo.
+Worker nuevo preparado por `.local/prepare-production-worker.ts --apply`: extensiones pg_cron/pg_net, secreto de URL/token en Vault y job `pasecentral-delivery` cada minuto, **active=false**. Solo consulta las tres colas cuando esté activo. Verificados `net` fuera del Data API (406/PGRST106), Vault no legible por anon/authenticated y roles de cliente sin login SQL. No había trabajos pendientes y no se hizo POST al worker ni se enviaron correos. Informe privado `.local/production-worker-report.json`.
+
+Claves internas nuevas (cifrado de entradas, sesión y worker) guardadas como tres secretos de Production en el Vercel autorizado: `TICKET_LIVE_ENCRYPTION_KEY`, `SESSION_LIVE_SECRET`, `WORKER_LIVE_SECRET`. Son reservas inactivas y coinciden con el token preparado en Vault. Respaldo de configuración privada en `.local/production-runtime.env` e importación privada en `.local/production-internal-reserved.env`; nunca publicarlos. Mantener las claves anteriores para la base anterior.
+
+Vercel todavía muestra Hobby en esta inspección posterior. Wompi volvió a pedir login; se dejó una pestaña para que el propietario inicie sesión y realice la rotación de llaves ya indicada. No se cambiaron las variables activas ni el ambiente de pagos.
+
+El propietario completó manualmente Create a new user. Las futuras cuentas deben seguir usando Auth e identidad verificada; no conceder roles mediante metadata pública. El bootstrap versionado de referencia está en `scripts/bootstrap.ts`.
+
+Antes del corte faltan la verificación operativa, rotación de llaves Wompi tras la exposición técnica ya comunicada, hosting comercial y sustitución coordinada de variables activas. El worker nuevo debe activarse después de comprobar que la aplicación usa su base y token. No rotar las claves de entradas del ambiente anterior ni activar dinero real sobre la base de ensayo. La app pública sigue usando el ambiente anterior; esta preparación no acredita una compra real ni recepción efectiva de correo.
 
 ## Editor del dashboard
 
