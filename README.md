@@ -4,11 +4,11 @@ MVP de boletería para fiestas en Colombia. Español, COP entero y presentación
 
 Incluye eventos independientes, localidades y fases de precio, compradores, taquilla, reservas online, QR individuales, PDF, control de ingreso, caja, devoluciones manuales, CSV y auditoría. **El entorno local usa datos ficticios. El lanzamiento comercial requiere configurar y verificar los servicios externos y el hardware.**
 
-## Demo conectada
+## Sitio publicado
 
-Disponible en https://pasecentral-demo.vercel.app. Usa Supabase real y Wompi **sandbox**, identificado como **PRUEBAS CONECTADAS**. El administrador inicial utiliza su cuenta verificada de Supabase. El evento `Fiesta de demostración · DEMO` tiene datos ficticios y cupos disponibles; no anuncia una fiesta real. Configuración y evidencia: [docs/CLOUD_SETUP_2026-10-13.md](docs/CLOUD_SETUP_2026-10-13.md).
+Disponible en [pasecentral.app](https://pasecentral.app). Desde el corte del26nov2026 usa una base Supabase separada y Wompi **producción**; los pagos nuevos son reales. Los alias Vercel anteriores redirigen a este dominio y ya no son sitios públicos de pruebas. No se trasladaron eventos, ventas ni boletas ficticias a la base nueva. El propietario debe crear el evento real y comprobar su primera compra/entrega antes de dar por ensayado el flujo completo. Configuración, comprobaciones y recuperación: [docs/PRODUCTION_DOMAIN_2026-11-26.md](docs/PRODUCTION_DOMAIN_2026-11-26.md).
 
-Los servicios de email están configurados con Resend y scheduler Supabase; la verificación operativa está en [docs/EMAIL_SETUP_2026-10-13.md](docs/EMAIL_SETUP_2026-10-13.md). Impresión y EDA51 requieren ensayo físico. La configuración conectada privada en `.env.local` cambia el modo local: para usar los perfiles ficticios descritos abajo, guardar ese archivo temporalmente en una ubicación privada fuera del checkout y ejecutar sin él. No compartir ni subir el archivo.
+Email está configurado con Resend y el scheduler de la base nueva; Auth usa plantillas españolas y el dominio propio. La configuración histórica del ensayo permanece en [docs/CLOUD_SETUP_2026-10-13.md](docs/CLOUD_SETUP_2026-10-13.md) y [docs/EMAIL_SETUP_2026-10-13.md](docs/EMAIL_SETUP_2026-10-13.md). Impresión/EDA51 mantienen sus guías y requieren validación en cada instalación. `.env.local` privado conserva el ensayo local; para usar los perfiles ficticios descritos abajo, guardar ese archivo temporalmente en una ubicación privada fuera del checkout y ejecutar sin él. No compartir ni subir archivos de configuración privados.
 
 ## Probar ahora en Windows
 

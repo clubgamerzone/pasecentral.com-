@@ -824,3 +824,5 @@ El software funciona con PostgreSQL embebido persistente en desarrollo. La demo 
 - Base separada de producción preparada (2026-11-26):15migraciones sin seed, TLS y33tablas RLS; Auth/SMTP y13plantillas españolas guardadas. Variables LIVE reservadas en Vercel, sin corte ni cobros. Estado actual y continuidad del administrador: docs/PRODUCTION_DATABASE_2026-11-26.md; prevalece como estado posterior a las notas de preparación anteriores.
 
 - Dominio pasecentral.app y perfil aislado de producción (2026-11-26): src/lib/config.ts, db.ts y proxy.ts; mapa de reservas, activación, pruebas y recuperación en docs/PRODUCTION_DOMAIN_2026-11-26.md. Mantener desarrollo/ensayos separados de la base nueva; no dar por probado un pago real hasta ensayo del propietario.
+
+- Producción publicada (2026-11-26): https://pasecentral.app, profile live activo con base nueva; Vercel success c767578, callbacks y aliases/WWW verificados. Worker producción activo, staging pausado, sin filas de prueba trasladadas. Estado, ensayos y límites actuales: docs/PRODUCTION_DOMAIN_2026-11-26.md.

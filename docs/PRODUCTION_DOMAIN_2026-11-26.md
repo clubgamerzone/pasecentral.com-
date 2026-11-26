@@ -1,5 +1,15 @@
 # Dominio propio y corte a producción — 2026-11-26
 
+## Resultado remoto confirmado
+
+Commit de implementación `c7675785b6f3f4632aca7c592cfd4c37eb67b172` enviado a main; Vercel confirmó Deployment has completed (success). El dominio `https://pasecentral.app` sirve la aplicación con environment=production, demo=false y cero eventos. Login200; callback sin token307 al login de este dominio; petición Auth inválida con Origin correcto400 y con origen ajeno403. Ambos alias anteriores redirigen308 al dominio propio conservando ruta/query. El webhook real, tanto por el alias autorizado como por el dominio propio, rechaza un cuerpo inválido400 sin redirección. Esto no equivale a verificar una transacción bancaria real.
+
+Worker sin credenciales401; con el token exclusivo nuevo200, processed=0, invitations=0, notifications=0. Se actualizó en Vault únicamente la URL al nuevo `/api/worker` y se activó el cron de producción cada minuto. El cron de staging quedó pausado. Configuración anterior respaldada con cifrado y verificación de descifrado en `.local/backups/live-cutover-*/worker-jobs.enc`; clave privada de recuperación en la configuración local del proyecto nuevo. Script privado `.local/activate-production-worker.ts --apply`; informe `.local/production-worker-cutover-report.json`. No se dispararon correos ni se crearon ventas para la comprobación.
+
+La base nueva conserva un administrador y una organización, cero eventos/órdenes/entradas; buckets avatars, event-images y tickets privados. Verificaciones HTTP repetidas en `.local/verify-live-domain.mjs`, informe privado `.local/production-domain-http.json`. Se agregó www al proyecto manteniendo desactivada la recomendación de redirigir apex a www para evitar un bucle con la URL canónica; HTTPS `https://www.pasecentral.app/login` respondió308 a `https://pasecentral.app/login`.
+
+Se dejó abierta la página de login del dominio propio para la intervención del propietario. Falta comprobar su sesión administrativa en el navegador, crear el evento real con sus precios y realizar la primera compra real por el propietario. No se ejecutaron cargos, transferencias, devoluciones ni una compra de comprobación. Recepción de correo/PDF y abono bancario real siguen sin ensayo end-to-end.
+
 ## Alcance autorizado
 
 El propietario confirmó contratación de Pro y registro de `pasecentral.app`. Vercel mostró Welcome to Pro y el dominio ya comprado; no se realizó una segunda compra ni se cambiaron datos de registro/renovación. Se conectó el dominio al proyecto existente `pasecentral-demo`, equipo `jd's projects`. HTTPS público `/login` devolvió200 antes del corte. Los alias Vercel anteriores se conservan.
