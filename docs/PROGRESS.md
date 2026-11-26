@@ -430,3 +430,7 @@ Guía actual: docs/PRODUCTION_DATABASE_2026-11-26.md. Conexión TLS verificada y
 ## Administrador y worker de producción preparados — 2026-11-26
 
 Cuenta creada manualmente por el propietario verificada con correo confirmado. Bootstrap transaccional con bloqueo: un administrador global y una organización inicial, cero eventos/órdenes/entradas. Worker de la base nueva configurado en cron cada minuto pero active=false; token en Vault, net fuera de Data API y Vault sin lectura para clientes verificados. Tres claves internas LIVE reservadas como secretos Production en Vercel; variables activas anteriores intactas. Dos pruebas de cola aprobadas. Ubicaciones/procedimiento en docs/PRODUCTION_DATABASE_2026-11-26.md. Vercel aún Hobby; Wompi sesión vencida, login/rotación del propietario pendientes. No correos, cobros ni transferencias en esta preparación.
+
+## Llaves Wompi nuevas reservadas — 2026-11-26
+
+Regeneración manual confirmada por propietario; cuatro secretos WOMPI_LIVE_* actualizados y fechas de guardado verificadas al recargar Vercel. No valores en chat/Git/archivos nuevos. Webhook real preservado. Billing sigue Hobby Active; página preparada para contratación Pro del propietario. Todavía sin corte de variables activas ni cobros reales. Detalle en docs/WOMPI_CUTOVER_2026-11-26.md.
