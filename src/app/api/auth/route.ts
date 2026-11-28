@@ -124,6 +124,9 @@ export async function POST(req: Request) {
                 gender: profile!.gender,
                 age_band: profile!.age_band,
                 terms_version: TERMS_VERSION,
+                ...(purchaseReturn(b.next)
+                  ? { purchase_return: purchaseReturn(b.next) }
+                  : {}),
               },
             },
           })

@@ -355,3 +355,47 @@ it("registro rápido incorpora retorno seguro y confirmación regresa al evento"
     `${base}/account/profile?confirmed=1`,
   );
 });
+
+it("retoma compra con plantilla Auth de enlace fijo usando solo metadatos validados", async () => {
+  const next =
+    "/events/retro-fest-1-0?selection=00000000-0000-4000-8000-000000000002:2";
+  auth.signUp.mockResolvedValue({
+    error: null,
+    data: { user: { id: "new" }, session: null },
+  });
+  const response = await POST(
+    request({
+      action: "signup",
+      email: "new@example.test",
+      password: "fictional-password-123",
+      name: "Ficticio",
+      gender: "prefer_not_to_say",
+      terms_accepted: true,
+      next,
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(auth.signUp.mock.lastCall?.[0].options.data.purchase_return).toBe(
+    next,
+  );
+  for (const target of [next, "https://evil.test", "/admin"]) {
+    auth.verifyOtp.mockResolvedValue({
+      error: null,
+      data: {
+        user: {
+          id: "new",
+          email: "new@example.test",
+          user_metadata: { purchase_return: target },
+        },
+      },
+    });
+    const confirmed = await GET(
+      new Request(
+        `${base}/auth/confirm?type=signup&token_hash=fake-test-token`,
+      ),
+    );
+    expect(confirmed.headers.get("location")).toBe(
+      `${base}${target === next ? next : "/account/profile?confirmed=1"}`,
+    );
+  }
+});

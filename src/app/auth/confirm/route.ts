@@ -23,6 +23,7 @@ export async function GET(req: Request) {
   const type = (allowedType ? requestedType : "signup") as EmailOtpType;
   let valid = false;
   let resumeInvitation = false;
+  let resumePurchase = purchaseReturn(url.searchParams.get("next"));
   if (!demoMode() && allowedType && (code || token)) {
     try {
       const s = await supabase();
@@ -30,6 +31,10 @@ export async function GET(req: Request) {
         ? await s.auth.exchangeCodeForSession(code)
         : await s.auth.verifyOtp({ token_hash: token!, type });
       valid = !result.error;
+      if (valid && type === "signup" && !resumePurchase)
+        resumePurchase = purchaseReturn(
+          result.data?.user?.user_metadata?.purchase_return,
+        );
       if (valid && type !== "recovery" && result.data?.user?.email) {
         try {
           resumeInvitation = !!(await pendingInvitation(await database(), {
@@ -53,8 +58,7 @@ export async function GET(req: Request) {
           ? "/reset-password"
           : resumeInvitation
             ? "/invite?confirmed=1"
-            : (purchaseReturn(url.searchParams.get("next")) ??
-              "/account/profile?confirmed=1")
+            : (resumePurchase ?? "/account/profile?confirmed=1")
         : type === "recovery"
           ? "/forgot-password?invalid=1"
           : `/login?confirmation=invalid${purchaseReturn(url.searchParams.get("next")) ? `&next=${encodeURIComponent(purchaseReturn(url.searchParams.get("next"))!)}` : ""}`,
