@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Ticket,
@@ -22,13 +23,18 @@ import { AttendeeFields, attendeeItems } from "./attendee-fields";
 import type { Attendee } from "@/lib/demographics";
 import { PaperTickets, PrintOptions, usePrintSettings } from "./print-options";
 import { browserId } from "@/lib/browser-id";
+import { purchaseSelection } from "@/lib/purchase-return";
+import { PurchaseAccount } from "./purchase-account";
 import {
   PreprintActionDialog,
   type PreprintActionTarget,
 } from "./preprint-actions";
 export function EventPurchase({ slug }: { slug: string }) {
+  const params = useSearchParams();
   const { data, run, busy, navigate } = useApp();
-  const [quantities, setQuantities] = useState<Record<string, number>>({}),
+  const [quantities, setQuantities] = useState<Record<string, number>>(() =>
+      purchaseSelection(params.get("selection")),
+    ),
     [key] = useState(() => browserId());
   const [people, setPeople] = useState<Record<string, Attendee>>({}),
     [consent, setConsent] = useState(false);
@@ -38,18 +44,23 @@ export function EventPurchase({ slug }: { slug: string }) {
   );
   if (!e) return <Empty>Este evento no está disponible para comprar.</Empty>;
   const types = data.types.filter((t) => t.event_id === e.id && t.active),
-    prices = types.map((t) => ({
-      t,
-      p: data.phases.find(
-        (p) =>
-          p.ticket_type_id === t.id &&
-          ["web", "both"].includes(p.channel) &&
-          p.active &&
-          new Date(p.starts_at) <= new Date() &&
-          (!(p.ends_at ?? p.effective_ends_at) ||
-            new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
-      ),
-    })),
+    prices = types
+      .map((t) => ({
+        t,
+        p: data.phases.find(
+          (p) =>
+            p.ticket_type_id === t.id &&
+            ["web", "both"].includes(p.channel) &&
+            p.active &&
+            new Date(p.starts_at) <= new Date() &&
+            (!(p.ends_at ?? p.effective_ends_at) ||
+              new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
+        ),
+      }))
+      .filter(({ p }) => !!p),
+    saleQuantities: Record<string, number> = Object.fromEntries(
+      prices.map(({ t }) => [t.id, quantities[t.id] ?? 0]),
+    ),
     total = prices.reduce(
       (s, { t, p }) => s + (p?.price_cop ?? 0) * (quantities[t.id] ?? 0),
       0,
@@ -116,6 +127,11 @@ export function EventPurchase({ slug }: { slug: string }) {
               : "Evento para todas las edades."}{" "}
             Revisa las condiciones del evento.
           </p>
+          {prices.length === 0 && (
+            <p className="notice" role="status">
+              No hay entradas con precio vigente para este canal.
+            </p>
+          )}
           {prices.map(({ t, p }) => (
             <div className="buy-line" key={t.id}>
               <div>
@@ -154,13 +170,16 @@ export function EventPurchase({ slug }: { slug: string }) {
             servidor.
           </p>
           {!data.actor ? (
-            <Link
-              className="btn primary"
-              style={{ width: "100%", marginTop: 25 }}
-              href="/login"
-            >
-              Inicia sesión para comprar
-            </Link>
+            <PurchaseAccount
+              returnTo={`/events/${slug}${
+                Object.values(saleQuantities).some((n) => n > 0)
+                  ? `?selection=${Object.entries(saleQuantities)
+                      .filter(([, n]) => n > 0)
+                      .map(([id, n]) => `${id}:${n}`)
+                      .join(",")}`
+                  : ""
+              }`}
+            />
           ) : (
             <form
               style={{ marginTop: 23 }}
@@ -170,9 +189,10 @@ export function EventPurchase({ slug }: { slug: string }) {
                   {
                     action: "reserve",
                     event_id: e.id,
-                    items: attendeeItems(quantities, people, consent),
+                    items: attendeeItems(saleQuantities, people, consent),
                     demographics_consent: consent,
                     ...formValues(ev.currentTarget),
+                    buyer_email: data.actor!.email,
                     is_gift: gift,
                     admission_age_confirmed:
                       new FormData(ev.currentTarget).get(
@@ -191,13 +211,10 @@ export function EventPurchase({ slug }: { slug: string }) {
                   label="Nombre completo"
                   value={data.actor.name}
                 />
-                <Field
-                  name="buyer_email"
-                  type="email"
-                  label="Correo para entrega"
-                  value={data.actor.email}
-                  readOnly
-                />
+                <p className="notice" aria-label="Correo para entrega">
+                  Enviaremos tus entradas a <strong>{data.actor.email}</strong>,
+                  el correo de tu cuenta.
+                </p>
                 <label className="inline-check">
                   <input
                     type="checkbox"
@@ -227,11 +244,12 @@ export function EventPurchase({ slug }: { slug: string }) {
                   required={false}
                 />
                 {!gift &&
-                  Object.values(quantities).reduce((s, n) => s + n, 0) > 1 && (
+                  Object.values(saleQuantities).reduce((s, n) => s + n, 0) >
+                    1 && (
                     <AttendeeFields
                       skipFirst
                       types={types}
-                      quantities={quantities}
+                      quantities={saleQuantities}
                       people={people}
                       onChange={setPeople}
                       consent={consent}
@@ -260,31 +278,35 @@ export function EventPurchase({ slug }: { slug: string }) {
                 )}
                 <label className="inline-check">
                   <input type="checkbox" required />
-                  Acepto las{" "}
-                  <a
-                    className="link"
-                    href="/terms"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    condiciones de compra
-                  </a>{" "}
-                  y el{" "}
-                  <a
-                    className="link"
-                    href="/privacy"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    aviso de privacidad
-                  </a>
-                  .
+                  <span>
+                    Acepto las{" "}
+                    <a
+                      className="link"
+                      href="/terms"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      condiciones de compra
+                    </a>{" "}
+                    y el{" "}
+                    <a
+                      className="link"
+                      href="/privacy"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      aviso de privacidad
+                    </a>
+                    .
+                  </span>
                 </label>
               </div>
               <button
                 className="btn primary"
                 style={{ width: "100%", marginTop: 22 }}
-                disabled={busy}
+                disabled={
+                  busy || !Object.values(saleQuantities).some((n) => n > 0)
+                }
               >
                 <Ticket />
                 Reservar y continuar
@@ -456,6 +478,7 @@ export function Tickets({
   preprinted?: boolean;
 }) {
   const { data, run, notify, navigate } = useApp();
+  const ownedOnly = useSearchParams().get("mine") === "1";
   const [manageTarget, setManageTarget] = useState<PreprintActionTarget | null>(
     null,
   );
@@ -484,6 +507,7 @@ export function Tickets({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...(preprinted ? { batch_id: orderId } : { order_id: orderId }),
+        owner_only: ownedOnly,
         share: location.hash.slice(1) || undefined,
         format,
       }),
@@ -496,6 +520,7 @@ export function Tickets({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ...(preprinted ? { batch_id: orderId } : { order_id: orderId }),
+        owner_only: ownedOnly,
         share: location.hash.slice(1) || undefined,
         format: "json",
       }),
@@ -514,7 +539,7 @@ export function Tickets({
     return () => {
       active = false;
     };
-  }, [orderId, preprinted]);
+  }, [orderId, preprinted, ownedOnly]);
   async function pdf() {
     try {
       const res = await request("pdf");
@@ -537,6 +562,7 @@ export function Tickets({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         order_id: orderId,
+        owner_only: ownedOnly,
         share: location.hash.slice(1) || undefined,
         format: "pdf",
       }),
@@ -554,7 +580,7 @@ export function Tickets({
     return () => {
       active = false;
     };
-  }, [doc, orderId, preprinted]);
+  }, [doc, orderId, preprinted, ownedOnly]);
   async function sharePdf() {
     if (!shareFile || !doc) return;
     if (!navigator.canShare?.({ files: [shareFile] }) || !navigator.share) {

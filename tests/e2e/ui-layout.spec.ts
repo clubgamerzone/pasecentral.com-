@@ -1,4 +1,44 @@
 import { test, expect } from "@playwright/test";
+test("registro de comprador mantiene etiquetas y condiciones legibles", async ({
+  page,
+}) => {
+  // Render the connected registration UI without contacting Auth or creating accounts.
+  await page.route("**/api/state", async (route) => {
+    const response = await route.fetch();
+    const state = await response.json();
+    await route.fulfill({ response, json: { ...state, demo: false } });
+  });
+  await page.goto("/login?register=1");
+  await expect(
+    page.getByRole("button", { name: "Crear cuenta", exact: true }),
+  ).toBeVisible();
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const name of ["Género", "Rango de edad (opcional)"]) {
+      const select = page.getByLabel(name, { exact: true });
+      const geometry = await select.evaluate((control) => {
+        const label = control
+          .parentElement!.querySelector("span")!
+          .getBoundingClientRect();
+        const bounds = control.getBoundingClientRect();
+        return { above: label.bottom <= bounds.top + 1, right: bounds.right };
+      });
+      expect(geometry.above).toBeTruthy();
+      expect(geometry.right).toBeLessThanOrEqual(width);
+    }
+    const terms = page
+      .locator(".inline-check")
+      .filter({ hasText: "condiciones de creación" });
+    await expect(terms.locator(":scope > span")).toHaveCount(1);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBeLessThanOrEqual(width + 1);
+    await page.screenshot({
+      path: `test-results/buyer-register-${width}.png`,
+      fullPage: true,
+    });
+  }
+});
 test("formularios y tablas mantienen alineación y ancho en escritorio y móvil", async ({
   page,
 }) => {
@@ -111,6 +151,40 @@ test("formularios y tablas mantienen alineación y ancho en escritorio y móvil"
     dialog.getByLabel("Vender hasta el final del evento"),
   ).toBeChecked();
   await dialog.getByLabel("Vender hasta el final del evento").uncheck();
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 640 });
+    const problems = await dialog.evaluate((modal) => {
+      const bounds = modal.getBoundingClientRect();
+      const errors: string[] = [];
+      if (bounds.left < 0 || bounds.right > innerWidth)
+        errors.push("modal fuera de pantalla");
+      if (modal.scrollWidth > modal.clientWidth + 1)
+        errors.push("modal con desbordamiento horizontal");
+      for (const field of modal.querySelectorAll(".field")) {
+        const label = field.querySelector(":scope > label, :scope > span");
+        const control = field.querySelector(
+          ":scope > input:not([type=checkbox]), :scope > select",
+        );
+        if (!label || !control) continue;
+        const l = label.getBoundingClientRect();
+        const c = control.getBoundingClientRect();
+        if (l.bottom > c.top + 1)
+          errors.push("etiqueta superpuesta al control");
+        if (c.right > bounds.right || c.left < bounds.left)
+          errors.push("control fuera del modal");
+      }
+      return errors;
+    });
+    expect(problems).toEqual([]);
+    await dialog.screenshot({ path: `test-results/phase-modal-${width}.png` });
+    const save = dialog.getByRole("button", {
+      name: "Guardar fase",
+      exact: true,
+    });
+    await save.scrollIntoViewIfNeeded();
+    await expect(save).toBeInViewport();
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await dialog
     .getByLabel("Fin de la fase", { exact: true })
     .fill(
@@ -123,4 +197,39 @@ test("formularios y tablas mantienen alineación y ancho en escritorio y móvil"
   await expect(page.locator("table").nth(1)).not.toContainText(
     "Hasta el final del evento",
   );
+});
+
+test("compra y regalo caben en móvil sin partir las condiciones en columnas", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page
+    .getByRole("button", { name: "Comprador demo", exact: true })
+    .click();
+  await expect(page.locator(".nav-foot")).toContainText("Comprador demo");
+  const state = await (await page.request.get("/api/state")).json();
+  const event = state.events.find(
+    (e: { status: string }) => e.status === "published",
+  );
+  await page.goto(`/events/${event.slug}`);
+  await expect(
+    page.getByLabel("Correo para entrega", { exact: true }),
+  ).toBeVisible();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const gift of [false, true]) {
+      await page.getByLabel("Es un regalo", { exact: true }).setChecked(gift);
+      const terms = page
+        .locator(".inline-check")
+        .filter({ hasText: "condiciones de compra" });
+      await expect(terms.locator(":scope > span")).toHaveCount(1);
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth),
+      ).toBeLessThanOrEqual(width + 1);
+      await page.screenshot({
+        path: `test-results/buyer-purchase-${width}-${gift}.png`,
+        fullPage: true,
+      });
+    }
+  }
 });

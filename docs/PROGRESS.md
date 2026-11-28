@@ -106,6 +106,7 @@ Incidencia reportada: EDA51 permanece en «Preparando tu espacio». API pública
 ADB autorizado y conectado: versión instalada de Chrome comprobada `70.0.3538.110`, Android 8.1.0. Incompatibilidad con mínimo Chrome 111 identificada; logcat acotado no aportó excepción JavaScript. Se indicó actualización oficial de Chrome y posterior ensayo; actualización/carga/escaneo siguen pendientes. Sin instalación de APK ni cambios de firmware/código.
 
 Propietario confirmó que la página abre después de actualizar; ADB comprobó Chrome activo 101.0.4951.61, aún inferior al mínimo documentado 111. Lectura suena/vibra pero el campo queda vacío: ensayo físico pendiente, investigar foco/Wedge/perfil/Data Intent. Data Collection Service 1.97.00.0245; configuración privada no legible por ADB, sin cambiar permisos. Se documentaron pasos de diagnóstico en TEST_REHEARSAL.md. Sin aceptación de boleta ni corrección especulativa de código.
+
 ## Acceso sin selección de evento y validación automática (2026-10-13)
 
 Implementado `scan_auto` que identifica evento por hash del QR y aplica el check-in transaccional existente; rechazo sin datos de evento para operador no autorizado. `/access` sin selector, lectura automática sin Enter, botón opcional/reintento y aviso grande verde/rojo que muestra evento autorizado, se cierra solo y conserva foco. Búsqueda manual entre eventos asignados y permiso vigente comprobado también en reintentos.
@@ -113,9 +114,11 @@ Implementado `scan_auto` que identifica evento por hash del QR y aplica el check
 Lint, tipos, 47 pruebas Vitest, 6 flujos Playwright y build pasaron. Playwright comprobó validación sin botón, popup, duplicado y recuperación de respuesta perdida con mismo request_id; tests de reglas comprobaron resolución de otro evento e impedimento de ingreso/revelación sin permiso. Hardware pendiente: el último reporte indicó pitido sin texto y Wedge requiere configuración. No se afirma lectura física homologada. Implementación en operations.tsx/service.ts/validation.ts; guía en OPERATIONS.md, TEST_REHEARSAL.md y decisión en DECISIONS.md. Commit consultable con `git log -1 -- src/components/operations.tsx`. Publicación en staging pendiente de comprobar al registrar esta nota.
 
 Publicación verificada: `58ae71d` Ready en Vercel, deployment `5RfnuYeAiEeFad6uP1m49VohVMA1`. Se recargó `/access` en sesión administrativa existente del navegador del PC: selector ausente, instrucciones de evento por QR y campo enfocado. Dos textos ficticios desconocidos enviados al campo se procesaron automáticamente y devolvieron «Entrada no encontrada» sin pulsar Validar; campo volvió vacío/enfocado, ninguna boleta consumida. Evidencia privada en `.local/verification/access-auto-result.png`. Popup/cierre y pérdida de respuesta comprobados mediante Playwright; escaneo físico del EDA51 todavía pendiente.
+
 ## Datos de Nequi para sandbox (2026-10-13)
 
 Captura aportada por el propietario mostró «Número no válido en Sandbox». Documentación oficial consultada: Nequi sandbox admite 3991111111 para APPROVED y 3992222222 para DECLINED; otros números generan ERROR. Instrucciones añadidas a TEST_REHEARSAL.md, sin datos personales ni capturas en Git. Sin cambios de código ni transacción ejecutada; aprobación y webhook completos siguen pendientes de comprobar. Verificación documental: git diff --check.
+
 ## QR/PDF en correo y compartir archivos (2026-10-13)
 
 Implementados QR incrustados CID y un PDF por entrada en `src/lib/ticket-email.ts`; cola con snapshot cifrado de adjuntos en delivery.ts/migración 003. Migración aplicada en Supabase con `node --env-file=.env.local --import tsx scripts/migrate.ts`. Se restringió lectura de la columna cifrada a usuarios cliente; sin buckets públicos. Compartir PDF desde Tickets usa Web Share de archivos con documento preparado antes del clic, o descarga e instrucciones para adjuntar en WhatsApp Web. El propietario aplazó WhatsApp automático; no se configuró ni prometió envío automático al comprar.
@@ -123,6 +126,7 @@ Implementados QR incrustados CID y un PDF por entrada en `src/lib/ticket-email.t
 48 pruebas Vitest y 6 Playwright pasaron; build correcto. Test nuevo verifica dos PDFs de una página y QR distintos, payload idéntico tras fallo/reintento, venta persistente y columna protegida. Playwright verifica archivo PDF en el menú de compartir simulado y descarga alternativa; no envió a WhatsApp real. Lint/tipos ejecutados; verificación final después de los cambios de tests pendiente al registrar esta nota. Publicación y email real con adjuntos aún por verificar. Commit de implementación consultable con `git log -1 -- src/lib/ticket-email.ts`.
 
 Verificación final completada: lint/tipos pasaron después de los cambios de tests. `ecc1581` Ready en Vercel, deployment `FGt57C5AZpjdTQ6hsgPkZDed8y91`; botón Compartir PDF por WhatsApp presente en una boleta de la demo. Reenvío autorizado de una orden DEMO existente únicamente al propietario, sin emitir ni consumir boletas nuevas. Scheduler procesó el job en un intento: sent, payload con 1 PDF y 1 QR CID; Resend mostró Delivered para «Tus entradas y QR · Pase Central». Privilegio de lectura de email_payload_encrypted para authenticated comprobado false en Supabase. Evidencia privada `.local/verification/pdf-email-delivered.png`; helpers de diagnóstico permanecen ignorados. No se comprobó envío a un chat WhatsApp real ni lectura del correo por el destinatario.
+
 ## Mi perfil e invitaciones por rol y eventos (2026-10-13)
 
 Añadido menú Mi perfil para todas las cuentas: nombre/teléfono/bio, foto privada normalizada con Sharp 0.35.5, quitar foto y consulta de permisos. API de avatar autenticada con validación/origen/límites; correo de identidad de solo lectura. Equipo y usuarios permite invitaciones de administrador global con rol y varios eventos, cola Resend, reenvío/revocación y aceptación transaccional con correo verificado. Organizador por evento se limita a event_staff y sus eventos; token/rol/eventos no se confían al cliente. Listado de personas de organizadores restringido a sus asignaciones.
@@ -156,6 +160,7 @@ Corrección solicitada: comprador deja de ser rol invitable. Equipo y usuarios o
 60 pruebas Vitest pasaron; lint, tipos y build pasaron. Dos E2E dirigidos pasaron: comprador reserva sin invitación y aceptación de invitación de cajero multievento, cambio de cuenta/perfil/foto. Aserciones verifican ausencia de opción customer y cajero predeterminado; API y PostgreSQL rechazan invitaciones de comprador. Guía actualizada: PROFILE_TEAM_SETUP.md; publicación verificada en la nota siguiente. Commit localizable con `git log -1 -- src/lib/invitations.ts`.
 
 Publicación laboral verificada: código `e3af417` Ready (`G5dP1Q4KSJgnc8TJzzsxufvy8k6b`). Equipo y usuarios en la demo muestra «Invitar a tu equipo», Cajero / taquilla seleccionado inicialmente, cuatro roles laborales y selección multievento; no opción ni fila activa de invitación de comprador. Evidencia privada: `.local/verification/employee-invitations.png`. No se enviaron nuevas invitaciones reales ni se asignaron permisos durante la comprobación. Esta nota es evidencia posterior del despliegue.
+
 ## Limpieza de ensayos solicitada por el propietario — 2026-10-13
 
 Inventario revisado: cuatro eventos DEMO, ocho órdenes/pagos y siete entradas; sin eventos ajenos al ensayo. Una cuenta Auth/perfil/admin y dos invitaciones (una admin pendiente) deben conservarse. Snapshot de BD cifrado y dos fotos ficticias cifradas exportados/verificados en .local/backups/; ningún secreto/archivo privado añadido a Git. CLI privado de mantenimiento con guardas staging/sandbox/lista exacta, respaldo obligatorio, preservación comprobada y eliminación transaccional. Limpieza aún pendiente de ejecución al registrar esta nota.
@@ -164,15 +169,18 @@ Confirmación nativa de eliminación de foto bloqueó Chrome y no eliminó datos
 Limpieza conectada completada el 2026-10-13, autorizada por el propietario: retiro de ambas fotos mediante alertdialog comprobado; Storage event-images sin objetos y avatar personal conservado. --apply exportó/verificó snapshot y eliminó transaccionalmente cuatro eventos, cinco localidades, ocho fases, ocho órdenes/pagos, diez ítems, siete entradas/lecturas, dos cajas/movimientos, cuatro entregas y tres webhooks; asignación al evento eliminado retirada. Todas las tablas operativas verificadas en cero. Auth/perfiles/admin/membresía/organización intactos; dos invitaciones conservadas (una admin pendiente y el histórico revocado). Diez registros de auditoría de identidad/mantenimiento y límites temporales conservados; nombre organizacional normalizado a Pase Central. Wompi sigue sandbox; no se activaron cobros reales.
 
 Backups privados verificados: .local/backups/test-reset-2026-10-13T23-58-56.550Z-prepare/ (database.enc y assets.enc) y test-reset-2026-10-14T00-08-33.068Z-apply/database.enc; timestamps de archivos en UTC. --apply comprueba que las cuentas Auth iniciales permanecen. Código c05bd62 Ready en Vercel (GQUSHXEfijftZxXvABYdBdw3NX43); build final y E2E de confirmación/cancelación pasaron. 62 Vitest tras añadir protección de invitación operativa pendiente; lint pasó. Catálogo administrativo verificado con 0 eventos, cuenta administrativa activa y enlace Crear evento; evidencia privada .local/verification/empty-events-after-reset.png. No se creó ningún evento nuevo real ni se enviaron correos durante la limpieza.
+
 ### Auditoría del ensayo retirada — 2026-10-13
 
 Solicitud adicional del propietario: retirar también auditoría existente. Se revisaron diez filas restantes y negocio en cero; backup cifrado privado verificado antes de borrar. `.local/clear-audit.ts` eliminó solo esos UUID en una transacción; auditoría quedó en cero, con Auth/perfil/admin e invitaciones sin cambios (1/1/1/2). No se deshabilita auditoría futura ni se modifica código/permisos/RLS. Respaldo y significado de columnas en TEST_DATA_RESET.md. Tabla de auditoría vacía verificada en Reportes; evidencia privada .local/verification/empty-audit-after-reset.png; no se requieren nuevas pruebas de aplicación por tratarse solo de datos y documentación.
+
 ## Guía visible de códigos de auditoría — 2026-10-13
 
 Reportes muestra operaciones y entidades en español; cada fila conserva código original y añade explicación. Guía de códigos desplegable con búsqueda por código/nombre/descripción, disponible con historial vacío. Catálogo audit-labels.ts cubre acciones emitidas por servicio, invitaciones, fotos, bootstrap/migración/mantenimiento; fallback explícito para códigos no catalogados. Interfaz audit-guide.tsx integrada en operations.tsx. Sin cambio de datos, roles ni dependencias; no se crean registros al consultar. Guía detallada AUDIT_GUIDE.md e índice operativo actualizados.
 
 Lint/tipos y E2E dirigido pasaron: fila profile_updated traducida, entidad Cuenta de usuario, búsqueda de profile_photo_updated, código inexistente y contador de auditoría sin cambios al consultar. Build/publicación en verificación. Commit localizable con `git log -1 -- src/lib/audit-labels.ts`.
 Verificación de guía conectada: `f1906db` Ready en Vercel (`62evQQuQJicDWY9wHuyEn2MLWdjW`). Reportes ofrece 42 definiciones; búsqueda de profile_photo_updated muestra Foto de perfil actualizada y su explicación. Auditoría y negocio continuaron vacíos; no se generaron filas ficticias para la demostración. Screenshot privado .local/verification/audit-operation-guide.png. Build final pasó; ajuste gramatical del contador singular aplicado después del ensayo, sin cambio de búsqueda ni registros.
+
 ## Analítica de ventas y audiencia — 2026-10-13
 
 Vista general y Reportes comparten análisis del servidor con filtros por eventos (dos para comparar), año del evento, fechas de confirmación y audiencia vigente/con ingreso. Ranking, evolución diaria/anual, fases/localidades con consolidación opcional, canales/operadores, cobros, devoluciones, disponibilidad, reservas/caja y cobertura de género/edad. Captura voluntaria por entrada en web/taquilla con autorización, sin inferir datos del comprador; filas individuales privadas y agregados autorizados por evento. Se conservan últimas órdenes y aviso de email fallido en Vista general, exportaciones tradicionales y guía de auditoría en Reportes. Migración 007, nuevo endpoint/componentes/catálogos/pruebas y guía ANALYTICS.md; sin cuentas/servicios/claves nuevos.
@@ -180,6 +188,7 @@ Vista general y Reportes comparten análisis del servidor con filtros por evento
 Verificación: 71 Vitest y 11 E2E completos pasaron. Incluyen vinculación individual/idempotencia, consentimiento, omisión, confirmación web, RLS denegada, roles y organizador limitado, Bogotá, snapshots/devoluciones/cortesías/pago sin cupo, comparación/CSV privado y ancho móvil. Se corrigieron nombres accesibles de selectores tras el primer ensayo; segunda ejecución tuvo un timeout transitorio durante recarga de desarrollo mientras cambiaba el componente; ejecución final completa sin cambios concurrentes pasó (39.7 s). No se extrapola a hardware. Migración 007 aplicada en Supabase, lectura real del agregado en cero, cuentas/perfiles/admin/invitaciones conservados (1/1/1/2), auditoría cero y SELECT directo de order_attendees denegado a anon/authenticated. Ninguna compra ficticia cloud creada. Build/publicación y verificación visual conectada pendientes al escribir esta nota. Commit localizable con `git log -1 -- src/lib/analytics.ts`.
 Verificación final local de analítica: lint y comprobación de tipos sin errores; build Next.js 16.4.0 completado e incluye /api/analytics. Publicación conectada en seguimiento. No hubo nuevas dependencias ni cambios de secretos.
 Analítica conectada verificada: `f6f9fe4` Ready en Vercel (`ANdUbW6Qgby9XQT14Lm4dP41LBbW`), Vista general y Reportes visibles con datos del servidor vacíos y sesión administrativa conservada; filtro de audiencia respondió y API anónima devolvió 401. Screenshot privado .local/verification/analytics-connected-overview.png. CSV local probado; intento de descarga conectada cancelado por Chrome, sin afirmar descarga cloud. No se repoblaron datos de ensayo ni se generó auditoría al consultar. Detalle y definiciones: ANALYTICS.md.
+
 ## Cuentas, regalos y edición operativa — 2026-10-14
 
 Registro con género/rango opcional/condiciones y callback por tipo al perfil; perfil con demografía y eliminación propia protegida, conservación de ventas/auditoría y revocación de accesos/QR. Compra protege correo verificado y permite regalo a cuenta existente/futura; Mis entradas acepta/rechaza/cancela/transfiere seleccionadas, vencimiento de 7 días y credenciales nuevas. Organizaciones admin, horarios apertura hora ligada a inicio/cierre con fecha, mínimo 18 editable (aceptado por propietario), COP formateado, fase Ambos y edición con snapshots. Menú contextual global desactivado, sin falsa promesa de seguridad. Migración 008, nuevos módulos/colas/componentes/catálogos de auditoría y 13 plantillas Auth españolas versionadas. Guía ACCOUNTS_TICKETS_2026-10-14.md.
@@ -223,39 +232,29 @@ Código `709b9f6` Ready (`31VST2omVtCqXhQtb8J1zw5x1om3`, 2026-10-14 15:52 Colomb
 
 Diagnóstico Windows de solo lectura: detectada STAR POS STAR-iF42 en USB002, estado PnP OK. Colas POS-80C/POSPrinter POS58 en USB001 y sin conexión; POS-58 en LPT1. No se cambió driver/puerto ni se imprimió. Guía docs/PRINTER_STAR_IF42.md; cola correcta, especificaciones de papel y prueba física siguen pendientes. Sin cambios cloud o datos de clientes.
 
-
 ### Controlador STARPOS asociado — 2026-11-18
 
 Paquete oficial iDPRT/Seagull 12.1.0 descargado y firmas verificadas. Instalado INF original mediante elevación Windows y creada cola STAR POS STAR-iF42 (ZPL 203 dpi) en USB002, estado Normal/WorkOffline=false/cero trabajos. Driver compatible por emulación ZPL iDPRT iF4 203 dpi; sin coincidencia STARPOS exacta ni homologación física aún. Colas previas preservadas, sin cambiar impresora predeterminada ni imprimir. Fuentes, ruta privada, comandos, hash, límites y próximos pasos en docs/PRINTER_STAR_IF42.md. No cambios de código/cloud ni secretos guardados.
-
 
 ### Muestra de impresión 70 x 40 mm — 2026-11-18
 
 Usuario autorizó una prueba con papel 7x4 y ribbon; interpretado como centímetros ancho×alto. Enviada una copia ZPL por Winspool RAW a STAR POS STAR-iF42 USB002, trabajo 2/429 bytes. Modo transferencia térmica, texto y QR de ensayo sin validez de ingreso; sin datos reales/cloud ni corte/calibración automáticos. Código privado y pasos en docs/PRINTER_STAR_IF42.md. Resultado físico/lectura Honeywell pendientes de confirmación del usuario.
 
-
 ### Error físico antes de imprimir STARPOS — 2026-11-18
 
 Usuario informa muestra sin impresión/movimiento y LED rojo parpadeante. Fotos muestran tabla de estados y papel de marcas negras; cola Windows Normal/cero no certifica impresora lista. Se pide cerrar mecanismo/tapa, identificar parpadeo lento/rápido/fijo y FEED una vez. No nuevos trabajos/reset/calibración ciega. Detalle y fuentes en docs/PRINTER_STAR_IF42.md; impresión real sigue fallida, no homologada.
 
-
 STARPOS: FEED pita, rojo rápido confirmado por usuario. Video oficial iF4 142 verifica calibración con pulsación corta del botón superior tras revisar recorrido y cerrar cabezal. Se indican pasos físicos; resultado aún pendiente, sin nuevos trabajos de impresión.
-
 
 STARPOS: cartulina una capa confirmada, cierre listo. Prueba única continua 70x40 con ribbon enviada (trabajo 7), sin calibración ni guardado permanente. Esperando impresión física y estado LED; guía PRINTER_STAR_IF42.md.
 
-
 STARPOS: último ensayo no imprimió, amarillo parpadeante. Destino USB002 STAR POS STAR-iF42 reconfirmado, driver iDPRT provisional no homologado. Video iF4 oficial 143: amarillo lento es pausa, reanudar FEED breve. No nuevos trabajos/reinstalación hasta observar resultado.
-
 
 STARPOS imprimió TEST-002 tras salir de pausa (foto del propietario); transferencia USB/ZPL operativa, calidad débil/irregular y margen izquierdo recortado pendientes. Lanzadas preferencias del controlador instalado para inspección; sin cambios de densidad/velocidad ni otra impresión. QR físico no homologado. Detalle PRINTER_STAR_IF42.md.
 
-
 STARPOS TEST-003 autorizada por listo: una muestra70x40 con ribbon, oscuridad15 absoluta/ajuste0, 50.8mm/s y margen izquierdo aumentado, enviada trabajo8 por RAW; sin cambio cloud ni boleta real. Confirmación física de calidad/QR pendiente. Guía PRINTER_STAR_IF42.md.
 
-
 STARPOS TEST-003 físico: alineación lateral mejorada, QR más definido; transferencia aún irregular/débil. Pendiente identificar ribbon y comprobar montaje/contacto, sin nueva muestra automática ni homologación de lector. Foto/estado descritos en PRINTER_STAR_IF42.md.
-
 
 2026-11-18: enviada una muestra fisica de prueba TEST-004 (trabajo 9), oscuridad 18 frente a 15 y misma velocidad 50.8 mm/s. Resultado fisico pendiente; procedimiento y script privado en docs/PRINTER_STAR_IF42.md. Sin cambios de aplicacion/cloud.
 
@@ -296,6 +295,7 @@ STARPOS: FEED avanza una boleta segun propietario (aproximado). Enviada muestra 
 STARPOS TEST-012 mejor alineado, marco superior aun cruza perforacion. Enviado TEST-013 con LT+4mm y marco mas corto para conservar margen inferior, trabajo20. Foto/consistencia pendientes; ver docs/PRINTER_STAR_IF42.md.
 
 ## Configuracion de papel en app (2026-11-18)
+
 - Propietario confirma TEST-013 bien alineado; falta consistencia de tres copias y nuevo formato real de app.
 - Selector en entradas con permiso de venta:80mm,70x40,70x100, preferencia local validada, controles de material/top/oscuridad. ZPL para STARPOS via QZ; ESC/POS80 conservado. Browser tiene plantillas de largo fijo con limites verificados en prueba de taquilla. PDF digital sin cambios. Guia docs/PRINT_PAPER_SETTINGS.md y mapa AGENTS/OPERATIONS/README.
 - Next/eslint-config-next patch16.4.6 tras advisory critico, audit prod0. Playwright chromium instalado con npx playwright install chromium para version fijada.
@@ -307,6 +307,7 @@ Verificacion final de esta entrega:97 pruebas Vitest,18 Playwright E2E (55.1s),l
 Commit de implementacion/verificaciones: feb5bd9 (Add ticket paper presets and STARPOS ZPL printing). El commit incluye documentacion de hardware y patch de seguridad. Proximo paso: sincronizar main y verificar despliegue; ensayo fisico QZ y papel grande siguen pendientes.
 
 ## Ensayo local previo a nuevas publicaciones
+
 Por instruccion del propietario, nuevas pruebas/cambios se conservan localmente, sin push. Enviadas tres muestras consecutivas TEST-014-1/2/3 con plantilla fisica TEST-013 (trabajo21). Resultado fisico pendiente. Anterior push6480917 ya realizado antes de esta instruccion; no se afirma despliegue verificado.
 Agregado tests/printer-adapter.test.ts: transporte QZ simulado, tres payloads ZPL distintos sin ESC/POS/corte, prevalidacion de orden antes de primer envio y recibo80 conserva ESC/POS. No acceso cloud ni impresion real desde ese test. Lint/typecheck pasan; suites y build final en curso.
 
@@ -315,6 +316,7 @@ Resultado local final:99 Vitest (6 archivos),18 Playwright (53.4s),lint,typechec
 Confirmacion posterior del propietario: TEST-014-1/2/3 alineadas y sus tres QR leidos por Honeywell. Aprobado ensayo fisico consecutivo de plantilla RAW70x40; flujo QZ completo de app y papel70x100 siguen pendientes. Suites locales99+18,lint,tipos y build aprobados previamente. Sin nuevos pushes/despliegues.
 
 ## Red local y limpieza de ambos destinos (2026-11-18)
+
 Por solicitud explicita del propietario y confirmacion ambos: limpiados2 eventos en PostgreSQL local y3 en Supabase staging/sandbox. Retiradas relaciones de ensayo cloud (6ordenes,11entradas,6pagos,2cajas,1transferencia). Respaldos cifrados verificados antes de eliminar; cuentas/permisos generales/invitaciones y objetos Storage conservados y comparados, sin cambios Auth. Sin borrar auditoria previa, archivos Storage o historiales externos; nuevas asignaciones por evento se deben crear. Herramienta privada exacta, no se debilito reset-test-data.ts. Detalles y limites de recuperacion: TEST_DATA_RESET.md.
 Agregado npm run dev:lan (Next0.0.0.0:3000); APP_URL privado actualizado a IP LAN. Front/API mismo puerto. Regla firewall elevada TCP3000 solamente Private/LocalSubnet/node.exe, resultado confirmado. Login/API200, eventospublicos0, origen correcto sin sesion401 y origen ajeno403. Acceso real Honeywell por LAN pendiente de confirmacion, no probado desde dispositivo. Servidor queda ejecutandose. Guia de inicio/parada/IP/firewall: LOCAL_NETWORK.md. Sin nuevos pushes o despliegues.
 
@@ -387,6 +389,7 @@ Compilación final aprobada. Se deja npm run dev:lan activo para revisar la bole
 2026-11-20 - Ampliado inventario preimpreso: acciones Desactivar/Eliminar para lote e individuo en vista previa y listado, diálogo con motivo/confirmación, eliminación física solo sin venta y protección atómica de lotes mixtos. Mantiene auditoría/impresión/consecutivos; borra secretos del QR y evita recreación por reintento mediante tombstone. Migración015enstaging/sandboxconrespaldo y filas existentes preservadas,0borrados/0desactivacionesdelpropietario.61servicio+13preprints y2E2Erelevantes aprobados,lint,tipos,build,diff-check; móvil revisado. GuíaPREPRINTED_TICKETS.md. Sin impresión, captura/controlPC,commit/push/deploy.
 
 ## Envío a GitHub autorizado (2026-11-20)
+
 El propietario solicita enviar el trabajo acumulado a GitHub, levantando la restricción previa de mantenerlo sin push. Incluye UI/operación de eventos y organizaciones, navegación, boleta doble/selección/numeración, arte por evento e inventario preimpreso con activación/desactivación/eliminación; migraciones010–015 y guías correspondientes. Verificación final conjunta:126Vitest/11archivos,26Playwright,lint,tipos,build y diff-check aprobados. Escaneo de patrones de credenciales sin hallazgos en candidatos; .env.local,.local/backups,datos locales,node_modules y test-results excluidos porGit. Sin nueva impresión, modificación de ventas/lotes del propietario o control/captura del escritorio. Destino origin/main del repositorio configurado. Referencia de commit y resultado de envío se documentan tras registrar la implementación. Un push no prueba despliegue ni ensayo físico/QZ; mantener límites de las guías.
 
 Commit de implementación de esta entrega: 5edb7dc (Complete event operations, double tickets and preprinted inventory). Registra los95archivos validados y las migraciones010–015. El commit de documentación siguiente conserva esta referencia; destino autorizado origin/main. Verificación de envío mediante git ls-remote y comparación con HEAD, sin equiparar GitHub con despliegue o homologación hardware.
@@ -486,3 +489,47 @@ Diagnóstico del error genérico observado en APK: todas las credenciales preimp
 Código android/terminal/src/app/pasecentral/terminal/MainActivity.java, AndroidManifest.xml y build.ps1; guía docs/ANDROID_TERMINAL.md. Android nativo Java sin WebView, mínimo27/8.1, compilaciónSDK35/JDK21 con aapt/javac/D8/zipalign/apksigner, sin dependencias descargadas. APK privada .local/android-terminal/pasecentral-terminal-dev.apk. Destino solo LANstaging; sesión/cookies/password en memoria, sin credenciales de servicios empaquetadas. Taquilla activa preimpresas/caja y Entrada valida con un solo comando; no sustituye todavía todas las funciones web ni autoriza offline.
 
 v0.1.0 instalada por ADB Success en EDA51/Android8.1 y abierta. Propietario confirmó login, dos puestos e INGRESO PERMITIDO, aproximadamente2segundos; lectura posterior de auditoría staging confirmó una aceptación, un already_used y un not_activated con etiqueta de APK. No es benchmark ni prueba de superar Chrome. Propietario reportó error genérico en Taquilla y botón caja siempre visible. v0.1.1 compilada/firma v2-v3 verificada: botón oculto si hay caja propia abierta, lista solo eventos cerrados, actualiza estado tras abrir y ofrece apertura ante falta de caja en otro evento. Su instalación por ADB fue rechazada por revisión automática como bloqueada por política, sin más motivo; no se intentó otra vía. El propietario pidió primero estabilizar la web y dejar APK para después. Instalación/ensayo v0.1.1 y diagnóstico específico del error APK quedan pendientes, sin afirmar que estén resueltos. No se realizaron más acciones en el equipo después de la pausa.
+
+## Retro Fest publicado y smoke de producción — 2026-11-26
+
+Propietario pidió QA de lanzamiento, copiar Retro Fest/config a producción y autorizó explícitamente push/despliegue web sin APK. Origen staging retro-fest-1-0; destino producción estaba sin eventos. Copia transaccional mediante servicio, organización Carnavaleando en el Hipodromo,2localidades/4fases, horarios/cupos/edad/descripción y arte de boleta; portada copiada con sesión admin por UI normal y publicada. No órdenes/boletas/lotes de ensayo trasladados. Enlace https://pasecentral.app/events/retro-fest-1-0. Guía y evidencia: docs/RETROFEST_RELEASE_QA_2026-11-26.md; respaldo/configuración e informe privados en .local/retrofest-production/.
+
+Código web commit2328597616cc84b54688a2866abb17fd863664a6 enviado a main/GitHub; Vercel success / Deployment has completed observado en estado del commit, despliegue8RENT9omPQiqWbAD1KyZ82dQ4gp2. Lector integrado en Taquilla confirmado en pantalla de producción. Android/README e índice locales de APK quedaron fuera del commit, preservados.
+
+QA repetida:147pruebas/17archivos Vitest,31recorridos Playwright aislados, lint/tipos/build aprobados. npm audit --omit=dev reportó0vulnerabilidades. Smoke público+DB de solo lectura32/32: paridad de todos los campos/fases/arte, portada HTTP200 y decodificada en navegador, precios correctos, login para comprar, APIs/CSRF/webhook/worker protegidos, cron correos activo, móvil sin errores JS/desbordamiento. Al terminar:0órdenes/0tickets/0lotes en el evento de producción; sin cobros ni mensajes de prueba. Pendiente compra real del propietario y recepción de PDF para cerrar la evidencia Wompi/email; lotes preimpresos deben crearse nuevos en producción. No afirmar que todo pago externo o hardware esté ensayado ni prometer ausencia absoluta de bugs.
+
+## Wallet de comprador y entradas personales del personal — 2026-11-27
+
+Solicitud: inicio directo para comprador, boletas horizontales y mejor interfaz; acceso Ver mis tiquetes para personal que también compra. Implementado en landing-page.ts/app.tsx, ticket-wallet.tsx y nuevo ticket-carousel.tsx; estilos en globals.css. Permisos efectivos determinan destino tras login y raíz autenticada; invitaciones/recuperación mantienen prioridad. Personal conserva puesto y solo cuenta sus entradas propias. Bienvenida, QR grande, portada, estados, navegación horizontal con contador y paneles secundarios abajo; sin entradas, invitación a explorar.
+
+/api/tickets añade vista previa individual owner_only/preview_ticket_id con comprobación real de titular, respuesta ID/PNG sin token o enlace; caché en memoria de ocho QR, invalidada con datos nuevos, sin descarga masiva. Vista completa ?mine=1 y sus PDF también filtran propiedad, evitando heredar privilegios de venta para mostrar entradas ajenas. state.ts incorpora metadatos de evento únicamente a filas ya autorizadas. Guía completa docs/BUYER_WALLET.md; sin migración ni nuevas dependencias.
+
+Verificación:147 pruebas de reglas, lint/tipos/build aprobados. Pruebas nuevas wallet con comprador/admin y destinos organizador/cajero/acceso aprobadas, titularidad negativa403, QR móvil y contador/anchos revisados. Regresión general33:30pasaron, tres incidencias por conexión/carga y fixture compartido promovido a admin por prueba previa. Fixture normalizado solo dentro del ensayo; repetición de Taquilla/UI/dos wallet pasó4/4. Recorridos wallet repetidos2/2 tras última mejora de QR grande. No se declara pase único limpio33. Evidencia y límites en la guía; capturas privadas test-results/wallet-*.png. Sin ventas/emails en servicios reales, sin publicación, APK pausada. Cambios locales pendientes de commit/despliegue; preservadas modificaciones anteriores de documentación y Android.
+
+## Formularios y edición de fases adaptables — 2026-11-27
+
+Corregida herencia de nowrap desde tablas en Editar fase mediante diálogo nativo; final de fase en fila propia, pie de acciones y desplazamiento vertical. Field y etiquetas con select comparten distribución vertical, controles acotados y columnas minmax. Condiciones de registro y compra agrupadas en un solo bloque junto a su casilla; modales existentes con límite de altura y texto adaptable. Guía de archivos, acceso y ejecución: docs/FORM_LAYOUT.md.
+
+QA local aislada: revisión de doce secciones a 1440/390 px, modal y registro a 1440/768/390/320 px, compra normal/regalo a 1440/390/320 px. Geometría de etiquetas/controles, ausencia de desbordamiento horizontal y botón Guardar alcanzable con altura de 640 px. Suite final ui-layout 3/3; wallet 2/2 en corrida previa conjunta 4/4. Registro inicialmente falló porque demo oculta Auth; se corrigió el fixture interceptando solo demo=false en estado, sin crear cuentas ni contactar Auth. Capturas de modal, registro y compra móvil revisadas visualmente. Lint, tipos, build aprobados. Advertencia existente del módulo opcional lna de qz-tray durante webpack; no impidió las pruebas. Sin prueba física adicional ni operaciones contra producción. Sin commit/push/despliegue; conservados cambios previos de cartera y Android.
+
+## Localidades sin fase de venta activa — 2026-11-27
+
+En Taquilla y compra online, las localidades activas se mostraban aunque no tuvieran una fase activa, vigente y del canal correspondiente. El precio no se aplicaba, pero quedaba la fila «Sin precio vigente» (en Taquilla incluso permitía elegir cantidad). Corregido en src/components/operations.tsx (BoxOffice) y buyer.tsx (EventPurchase): ocultar esas filas, mensaje de ausencia de precios, deshabilitar envío sin cantidades elegibles y construir asistentes/partidas únicamente con las localidades elegibles. Las cortesías autorizadas siguen independientes de las fases pagadas; no se desactiva una localidad por desactivar sus precios. El servidor ya consulta fases activas/vigentes por canal y valida localidad activa; no se modificó esa regla ni las ventas anteriores.
+
+Prueba nueva tests/e2e/inactive-pricing.spec.ts: desactiva todas las fases VIP de un evento ficticio, verifica ausencia de VIP en web/taquilla, rechaza reserve/sell directos y confirma que una cortesía autorizada conserva VIP. Restaura fases al finalizar. Ejecutada con copia privada sin .env y PGlite aislado en puerto3100:1/1 aprobada. Sin escrituras en Supabase dev/producción, sin pagos ni emails reales. Cambios locales; producción requiere publicación explícita. No implica invalidar reservas o entradas emitidas anteriormente.
+
+Validación adicional de este cambio: lint, typecheck y build aprobados tras tipar explícitamente el mapa de cantidades elegibles. Sin nueva dependencia ni migración.
+
+## Registro rápido dentro de compra — 2026-11-27
+
+Cuenta rápida integrada en evento para visitantes: nombre/email/contraseña, perfil demográfico y condiciones reutilizan Auth. Login y confirmación conservan retorno al evento y cantidades mediante parámetro validado, sin transportar precios o datos personales. No se reserva inventario antes de confirmar correo. Usuario conectado no rellena email: se muestra correo de cuenta y se envía explícitamente el actor; servidor ya lo fuerza. Regalos siguen separados. Código y reproducción en docs/QUICK_PURCHASE_ACCOUNT.md. Sin migraciones, dependencias ni cambios de cuentas/SMTP externos; entrega local sin publicación.
+
+Validación de reglas:17 pruebas Auth/retorno aprobadas y11 pruebas de cuentas/transferencias aprobadas, incluida manipulación de correo corregida por servidor. Lint y build aprobados. QA de navegador y revisión visual se registran a continuación. Prueba local de registro usa respuesta Auth simulada; no equivale a verificar recepción de correo real ni cuenta real nueva.
+
+Resultado navegador: regresión de cuentas/perfil/regalos, fases inactivas y formularios7/7 aprobada; recorrido nuevo falló inicialmente al localizar selectores sin aria-label explícita. Corregidas etiquetas del registro rápido y repetido recorrido1/1 aprobado: solicitud signup con datos/consentimiento, aviso de confirmación, contraseña retirada del DOM, enlace login con retorno, cantidades restauradas y entrega al email de cuenta sin input. Captura móvil de confirmación revisada. Tipos/lint repetidos aprobados; build aprobado. No se declara una corrida inicial limpia8/8. Advertencia opcional lna de qz-tray en webpack permanece sin impedir pruebas. Recepción real de correo/callback depende de configuración Supabase y requiere ensayo conectado aparte; no se publicó código ni se enviaron mensajes reales.
+
+## Publicación web autorizada — 2026-11-27
+
+El propietario autorizó «envia el update a producción». Alcance: cartera de comprador con QR/carrusel y acceso personal del equipo, formularios/modales adaptables, ocultar localidades sin fase vigente del canal, registro rápido en compra y correo de entrega de cuenta. Sin APK/Android ni migraciones de datos. No se alteran precios/estados configurados por el propietario en producción.
+
+Verificación previa a publicación:150 pruebas de reglas/18 archivos,10 recorridos de navegador en una sola corrida aislada (cuentas/regalos/perfil, fases inactivas, registro rápido, formularios, cartera y permisos), lint/tipos/build aprobados. Sin compras, cuentas o mensajes reales durante QA. Vercel se despliega desde main; confirmar estado success del commit y smoke público de solo lectura antes de comunicar publicación completada. Plan de reversión: redeploy de2328597616cc84b54688a2866abb17fd863664a6; cambios compatibles con la base actual, sin migración destructiva. Guías: BUYER_WALLET.md, FORM_LAYOUT.md y QUICK_PURCHASE_ACCOUNT.md.

@@ -4,6 +4,7 @@ import { appUrl, demoMode } from "@/lib/config";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { database } from "@/lib/db";
 import { pendingInvitation } from "@/lib/invitations";
+import { purchaseReturn } from "@/lib/purchase-return";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -52,10 +53,11 @@ export async function GET(req: Request) {
           ? "/reset-password"
           : resumeInvitation
             ? "/invite?confirmed=1"
-            : "/account/profile?confirmed=1"
+            : (purchaseReturn(url.searchParams.get("next")) ??
+              "/account/profile?confirmed=1")
         : type === "recovery"
           ? "/forgot-password?invalid=1"
-          : "/login?confirmation=invalid",
+          : `/login?confirmation=invalid${purchaseReturn(url.searchParams.get("next")) ? `&next=${encodeURIComponent(purchaseReturn(url.searchParams.get("next"))!)}` : ""}`,
       appUrl(),
     ),
   );

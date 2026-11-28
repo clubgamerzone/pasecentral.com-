@@ -125,7 +125,7 @@ test("regalo con correo propio bloqueado, aceptación y transferencia selectiva 
   await page.getByLabel("Cantidad General").selectOption("1");
   await expect(
     page.getByLabel("Correo para entrega", { exact: true }),
-  ).toHaveAttribute("readonly", "");
+  ).toContainText("el correo de tu cuenta");
   await expect(
     page.getByText("Datos opcionales de cada asistente", { exact: true }),
   ).toHaveCount(0);

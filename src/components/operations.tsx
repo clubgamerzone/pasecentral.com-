@@ -721,18 +721,23 @@ export function BoxOffice() {
     [key, setKey] = useState(() => browserId());
   const e = data.events.find((e) => e.id === event),
     types = data.types.filter((t) => t.event_id === event && t.active),
-    prices = types.map((t) => ({
-      t,
-      p: data.phases.find(
-        (p) =>
-          p.ticket_type_id === t.id &&
-          ["box_office", "both"].includes(p.channel) &&
-          p.active &&
-          new Date(p.starts_at) <= new Date() &&
-          (!(p.ends_at ?? p.effective_ends_at) ||
-            new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
-      ),
-    })),
+    prices = types
+      .map((t) => ({
+        t,
+        p: data.phases.find(
+          (p) =>
+            p.ticket_type_id === t.id &&
+            ["box_office", "both"].includes(p.channel) &&
+            p.active &&
+            new Date(p.starts_at) <= new Date() &&
+            (!(p.ends_at ?? p.effective_ends_at) ||
+              new Date(p.ends_at ?? p.effective_ends_at) > new Date()),
+        ),
+      }))
+      .filter(({ p }) => method === "complimentary" || !!p),
+    saleQuantities: Record<string, number> = Object.fromEntries(
+      prices.map(({ t }) => [t.id, quantities[t.id] ?? 0]),
+    ),
     total = prices.reduce(
       (s, { t, p }) =>
         s +
@@ -804,6 +809,11 @@ export function BoxOffice() {
               </p>
             )}
             <h3 style={{ marginTop: 27 }}>Selecciona las entradas</h3>
+            {prices.length === 0 && (
+              <p className="notice" role="status">
+                No hay entradas con precio vigente para este canal.
+              </p>
+            )}
             {prices.map(({ t, p }) => (
               <div className="buy-line" key={t.id}>
                 <div>
@@ -876,7 +886,7 @@ export function BoxOffice() {
                   {
                     action: "sell",
                     event_id: event,
-                    items: attendeeItems(quantities, people, consent),
+                    items: attendeeItems(saleQuantities, people, consent),
                     demographics_consent: consent,
                     ...b,
                     method,
@@ -944,7 +954,7 @@ export function BoxOffice() {
               </div>
               <AttendeeFields
                 types={types}
-                quantities={quantities}
+                quantities={saleQuantities}
                 people={people}
                 onChange={setPeople}
                 consent={consent}
@@ -964,7 +974,8 @@ export function BoxOffice() {
                 disabled={
                   busy ||
                   (method === "cash" && !session) ||
-                  e?.status !== "published"
+                  e?.status !== "published" ||
+                  !Object.values(saleQuantities).some((n) => n > 0)
                 }
               >
                 <Ticket />

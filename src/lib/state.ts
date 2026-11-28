@@ -159,7 +159,7 @@ export async function state(db: DB, a: Actor | null) {
         tx,
         [
           {
-            sql: `SELECT t.id,t.owner_user_id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name,EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') AS transfer_pending FROM tickets t JOIN order_items i ON i.id=t.order_item_id WHERE t.owner_user_id=$1 OR t.event_id=ANY($2::uuid[]) OR (i.order_id=ANY($3::uuid[]) AND t.owner_user_id IS NULL) ORDER BY t.event_sequence`,
+            sql: `SELECT t.id,t.owner_user_id,t.event_id,t.ticket_type_id,t.event_sequence,t.visible_number,t.security_serial,t.status,t.used_at,t.issued_at,i.order_id,i.type_name,e.title AS event_title,e.starts_at AS event_starts_at,e.venue_name AS event_venue_name,EXISTS(SELECT 1 FROM ticket_transfer_items ti JOIN ticket_transfers r ON r.id=ti.transfer_id WHERE ti.ticket_id=t.id AND r.status='pending') AS transfer_pending FROM tickets t JOIN order_items i ON i.id=t.order_item_id JOIN events e ON e.id=t.event_id WHERE t.owner_user_id=$1 OR t.event_id=ANY($2::uuid[]) OR (i.order_id=ANY($3::uuid[]) AND t.owner_user_id IS NULL) ORDER BY t.event_sequence`,
             params: [a.id, [...sellable, ...accessible], orderIds],
           },
           {

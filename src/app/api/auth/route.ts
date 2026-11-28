@@ -7,6 +7,7 @@ import { originCheck, jsonBody, errorResponse } from "@/lib/http";
 import { database } from "@/lib/db";
 import { pendingInvitation } from "@/lib/invitations";
 import { fail, rateLimit } from "@/lib/service";
+import { purchaseReturn } from "@/lib/purchase-return";
 import {
   registration,
   TERMS_VERSION,
@@ -30,6 +31,7 @@ const schema = z.object({
   gender: gender.optional(),
   age_band: ageBand.nullable().optional(),
   terms_accepted: z.boolean().optional(),
+  next: z.string().max(2000).optional(),
   access_token: z.string().min(20).max(8192).optional(),
   refresh_token: z.string().min(10).max(2048).optional(),
 });
@@ -116,7 +118,7 @@ export async function POST(req: Request) {
             email: b.email,
             password: b.password,
             options: {
-              emailRedirectTo: `${appUrl()}/auth/confirm?type=signup`,
+              emailRedirectTo: `${appUrl()}/auth/confirm?type=signup${purchaseReturn(b.next) ? `&next=${encodeURIComponent(purchaseReturn(b.next)!)}` : ""}`,
               data: {
                 name: profile!.name,
                 gender: profile!.gender,

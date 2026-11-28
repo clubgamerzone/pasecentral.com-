@@ -1,10 +1,14 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Row } from "@/lib/db";
 import { useApp, Field } from "./app";
 import { localDateTime, PhaseEnd } from "./enhanced-fields";
 export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
   const [open, setOpen] = useState(false);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (open) dialog.current?.showModal();
+  }, [open]);
   const { run, busy, data } = useApp();
   const event = data.events.find((e) => e.id === eventId);
   return (
@@ -13,14 +17,13 @@ export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
         Editar fase {phase.name}
       </button>
       {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
+        <dialog
+          ref={dialog}
           aria-label={`Editar fase ${phase.name}`}
-          className="image-confirm-backdrop"
+          className="panel capacity-dialog phase-edit-dialog"
+          onCancel={() => setOpen(false)}
         >
           <form
-            className="panel"
             onSubmit={async (e) => {
               e.preventDefault();
               const fields = Object.fromEntries(new FormData(e.currentTarget));
@@ -75,14 +78,16 @@ export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
                 type="datetime-local"
                 defaultValue={localDateTime(phase.starts_at)}
               />
-              <PhaseEnd event={event} phase={phase} label="Fin de la fase" />
+              <div className="full">
+                <PhaseEnd event={event} phase={phase} label="Fin de la fase" />
+              </div>
             </div>
             <p>
               Hora de Colombia. No puede superponerse con otra fase activa para
               el mismo canal. “Ambos” aplica un mismo precio online y en
               taquilla.
             </p>
-            <div className="buttons">
+            <div className="form-actions">
               <button
                 type="button"
                 className="btn"
@@ -95,7 +100,7 @@ export function EditPhase({ phase, eventId }: { phase: Row; eventId: string }) {
               </button>
             </div>
           </form>
-        </div>
+        </dialog>
       )}
     </>
   );

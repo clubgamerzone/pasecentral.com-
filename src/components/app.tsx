@@ -51,6 +51,8 @@ import { MoneyInput } from "./enhanced-fields";
 import { genders, ageBands } from "@/lib/demographics";
 import { TicketWallet, Organizations } from "./ticket-wallet";
 import { Preprints } from "./preprints";
+import { landingPage } from "@/lib/landing-page";
+import { purchaseReturn } from "@/lib/purchase-return";
 export type State = Awaited<ReturnType<typeof state>>;
 type Context = {
   data: State;
@@ -61,7 +63,7 @@ type Context = {
     onError?: (message: string) => void,
     refreshAfter?: boolean,
   ) => Promise<Row | null>;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<State>;
   navigate: (path: string) => void;
   notify: (message: string, error?: boolean) => void;
 };
@@ -149,7 +151,7 @@ export function Field({
 } & React.InputHTMLAttributes<HTMLInputElement>) {
   const fieldId = `${name}-${useId()}`;
   return (
-    <div>
+    <div className="field">
       <label htmlFor={fieldId}>{label}</label>
       {children ? (
         isValidElement<{ id?: string }>(children) ? (
@@ -188,15 +190,17 @@ export function Heading({
   title,
   subtitle,
   action,
+  eyebrow = "Pase Central / Gestión de eventos",
 }: {
   title: string;
   subtitle?: string;
   action?: React.ReactNode;
+  eyebrow?: string;
 }) {
   return (
     <div className="heading">
       <div>
-        <div className="eyebrow">Pase Central / Gestión de eventos</div>
+        <div className="eyebrow">{eyebrow}</div>
         <h1>{title}</h1>
         {subtitle && <p>{subtitle}</p>}
       </div>
@@ -221,6 +225,7 @@ export function App() {
     const body = await res.json();
     if (!res.ok) throw new Error(body.error);
     if (version === refreshVersion.current && !signal?.aborted) setData(body);
+    return body as State;
   }, []);
   useEffect(() => {
     if (previousPath.current === path) return;
@@ -279,12 +284,21 @@ export function App() {
                 destination = recovering
                   ? "/reset-password"
                   : "/account/profile?confirmed=1";
+              if (response.ok && !recovering)
+                destination =
+                  purchaseReturn(
+                    window.location.search
+                      ? new URLSearchParams(window.location.search).get("next")
+                      : null,
+                  ) ?? destination;
             } catch {
               /* A network error never authenticates a recovery session. */
             }
           }
         }
-        await refresh();
+        const current = await refresh();
+        if (!destination && current.actor && window.location.pathname === "/")
+          destination = landingPage(current.permissions);
         if (active && destination) router.replace(destination);
       }
       initialize().catch((e) => {
@@ -368,6 +382,13 @@ export function App() {
       </div>
     );
   const manage = data.permissions.manage.length > 0 || data.permissions.admin;
+  const personalTickets = data.tickets.filter(
+    (t) => t.owner_user_id === data.actor?.id,
+  ).length;
+  const operationalUser =
+    manage ||
+    data.permissions.sell.length > 0 ||
+    data.permissions.access.length > 0;
   const menu = [
     { href: "/events", label: "Explorar eventos", icon: CalendarDays },
     ...(data.actor
@@ -584,7 +605,9 @@ export function App() {
           </div>
         </aside>
         <div className="workspace">
-          <header className="topbar">
+          <header
+            className={`topbar${data.actor && operationalUser && personalTickets > 0 ? " has-personal-tickets" : ""}`}
+          >
             <span className="crumb">
               Tu espacio{" "}
               <ChevronRight
@@ -604,6 +627,15 @@ export function App() {
               </b>
             </span>
             <div className="top-right">
+              {data.actor && operationalUser && personalTickets > 0 && (
+                <Link
+                  className="btn small personal-ticket-link"
+                  href="/account/tickets"
+                >
+                  <Ticket size={16} />
+                  Ver mis tiquetes <span>({personalTickets})</span>
+                </Link>
+              )}
               {data.environment !== "production" && (
                 <>
                   <span className="demo-pill">
@@ -667,7 +699,7 @@ function Login() {
       });
       const b = await res.json();
       if (!res.ok) throw new Error(b.error);
-      await refresh();
+      const current = await refresh();
       if (body.action === "signup") {
         setSignupResult(b.message);
         notify(b.message);
@@ -679,13 +711,9 @@ function Login() {
         navigate("/invite");
       else
         navigate(
-          body.action === "demo" && [USERS[0].id, USERS[1].id].includes(body.id)
-            ? "/admin"
-            : body.action === "demo" && body.id === USERS[2].id
-              ? "/box-office"
-              : body.action === "demo" && body.id === USERS[3].id
-                ? "/access"
-                : "/events",
+          purchaseReturn(
+            new URLSearchParams(window.location.search).get("next"),
+          ) ?? landingPage(current.permissions),
         );
     } catch (e) {
       notify((e as Error).message, true);
@@ -792,6 +820,10 @@ function Login() {
             e.preventDefault();
             login({
               action: signup ? "signup" : "login",
+              next:
+                purchaseReturn(
+                  new URLSearchParams(window.location.search).get("next"),
+                ) ?? undefined,
               ...Object.fromEntries(new FormData(e.currentTarget)),
               ...(signup
                 ? {
@@ -850,15 +882,17 @@ function Login() {
               </p>
               <label className="inline-check">
                 <input type="checkbox" required />
-                Acepto las{" "}
-                <a href="/terms" target="_blank" rel="noreferrer">
-                  condiciones de creación de cuenta
-                </a>{" "}
-                y el{" "}
-                <a href="/privacy" target="_blank" rel="noreferrer">
-                  aviso de privacidad
-                </a>
-                , incluido el uso estadístico de los datos declarados.
+                <span>
+                  Acepto las{" "}
+                  <a href="/terms" target="_blank" rel="noreferrer">
+                    condiciones de creación de cuenta
+                  </a>{" "}
+                  y el{" "}
+                  <a href="/privacy" target="_blank" rel="noreferrer">
+                    aviso de privacidad
+                  </a>
+                  , incluido el uso estadístico de los datos declarados.
+                </span>
               </label>
             </>
           )}

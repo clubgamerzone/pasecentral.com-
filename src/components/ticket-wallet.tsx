@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Building2, Plus, Save, CalendarDays, Users, Mail } from "lucide-react";
 import { useApp, Heading, Field, Badge, when, Empty } from "./app";
 import { Orders } from "./operations";
+import { TicketCarousel } from "./ticket-carousel";
 export function DeleteAccount() {
   const { data, notify, refresh, navigate } = useApp();
   const [open, setOpen] = useState(false),
@@ -91,100 +92,127 @@ export function TicketWallet() {
   const [selected, setSelected] = useState<string[]>([]),
     [sending, setSending] = useState(false),
     [ages, setAges] = useState<Record<string, boolean>>({});
-  const owned = data.tickets.filter((t) => t.owner_user_id === data.actor?.id);
+  const owned = data.tickets
+    .filter((t) => t.owner_user_id === data.actor?.id)
+    .sort(
+      (a, b) =>
+        Number(b.status === "valid" && !b.transfer_pending) -
+          Number(a.status === "valid" && !a.transfer_pending) ||
+        new Date(b.issued_at).getTime() - new Date(a.issued_at).getTime(),
+    );
   return (
     <>
       <Heading
         title="Mis entradas"
-        subtitle="Consulta tus entradas, acepta regalos y transfiere entradas seleccionadas."
+        eyebrow="Pase Central / Tu próxima experiencia"
+        subtitle="Tus planes, tus boletas y el QR para vivirlos. Todo en un solo lugar."
       />
-      <section className="panel">
-        <h2>Regalos y transferencias</h2>
-        {data.transfers.length === 0 && (
-          <Empty>No tienes entregas pendientes.</Empty>
-        )}
-        {data.transfers.map((r) => (
-          <article key={r.id} className="panel" style={{ marginTop: 16 }}>
-            <b>
-              {r.kind === "gift" ? "Regalo" : "Transferencia"} ·{" "}
-              {r.from_user_id === data.actor?.id ? "Enviado" : "Recibido"}
-            </b>
-            <p>
-              {r.from_user_id === data.actor?.id
-                ? r.recipient_email
-                : `Enviado por ${r.from_name} · dirigido al correo de tu cuenta`}{" "}
-              · Vence {when(r.expires_at)}
-            </p>
-            <Badge status={r.status} />
-            {r.status === "pending" && (
-              <div className="buttons" style={{ marginTop: 12 }}>
-                {r.from_user_id === data.actor?.id ? (
-                  <button
-                    className="btn"
-                    disabled={busy}
-                    onClick={() =>
-                      run(
-                        { action: "transfer_cancel", transfer_id: r.id },
-                        "Entrega cancelada",
-                      )
-                    }
-                  >
-                    Cancelar entrega
-                  </button>
-                ) : (
-                  <>
-                    <label className="inline-check">
-                      <input
-                        type="checkbox"
-                        checked={ages[r.id] ?? false}
-                        onChange={(e) =>
-                          setAges({ ...ages, [r.id]: e.target.checked })
-                        }
-                      />
-                      Confirmo que cumpliré la edad mínima de los eventos. Si
-                      recibo varias entradas, los datos de Mi perfil describen
-                      solo mi propia entrada.
-                    </label>
-                    <button
-                      className="btn primary"
-                      disabled={busy || !ages[r.id]}
-                      onClick={() =>
-                        run(
-                          {
-                            action: "transfer_resolve",
-                            transfer_id: r.id,
-                            accept: true,
-                            admission_age_confirmed: ages[r.id],
-                          },
-                          "Entradas aceptadas",
-                        )
-                      }
-                    >
-                      Aceptar entradas
-                    </button>
+      <div className="wallet-welcome">
+        <div>
+          <span className="eyebrow">TU PRÓXIMA GRAN NOCHE</span>
+          <h2>Hola, {data.actor?.name.split(" ")[0]}. Tu lugar te espera.</h2>
+          <p>
+            {
+              owned.filter((t) => t.status === "valid" && !t.transfer_pending)
+                .length
+            }{" "}
+            entradas vigentes a tu nombre
+          </p>
+        </div>
+        <Link className="btn" href="/events">
+          Explorar eventos
+        </Link>
+      </div>
+      <TicketCarousel tickets={owned} />
+      {data.transfers.length > 0 && (
+        <section className="panel" style={{ marginTop: 24 }}>
+          <h2>Regalos y transferencias</h2>
+          {data.transfers.length === 0 && (
+            <Empty>No tienes entregas pendientes.</Empty>
+          )}
+          {data.transfers.map((r) => (
+            <article key={r.id} className="panel" style={{ marginTop: 16 }}>
+              <b>
+                {r.kind === "gift" ? "Regalo" : "Transferencia"} ·{" "}
+                {r.from_user_id === data.actor?.id ? "Enviado" : "Recibido"}
+              </b>
+              <p>
+                {r.from_user_id === data.actor?.id
+                  ? r.recipient_email
+                  : `Enviado por ${r.from_name} · dirigido al correo de tu cuenta`}{" "}
+                · Vence {when(r.expires_at)}
+              </p>
+              <Badge status={r.status} />
+              {r.status === "pending" && (
+                <div className="buttons" style={{ marginTop: 12 }}>
+                  {r.from_user_id === data.actor?.id ? (
                     <button
                       className="btn"
                       disabled={busy}
                       onClick={() =>
                         run(
-                          {
-                            action: "transfer_resolve",
-                            transfer_id: r.id,
-                            accept: false,
-                          },
-                          "Entradas devueltas al remitente",
+                          { action: "transfer_cancel", transfer_id: r.id },
+                          "Entrega cancelada",
                         )
                       }
                     >
-                      Rechazar
+                      Cancelar entrega
                     </button>
-                  </>
-                )}
-              </div>
-            )}
-          </article>
-        ))}
-      </section>
+                  ) : (
+                    <>
+                      <label className="inline-check">
+                        <input
+                          type="checkbox"
+                          checked={ages[r.id] ?? false}
+                          onChange={(e) =>
+                            setAges({ ...ages, [r.id]: e.target.checked })
+                          }
+                        />
+                        Confirmo que cumpliré la edad mínima de los eventos. Si
+                        recibo varias entradas, los datos de Mi perfil describen
+                        solo mi propia entrada.
+                      </label>
+                      <button
+                        className="btn primary"
+                        disabled={busy || !ages[r.id]}
+                        onClick={() =>
+                          run(
+                            {
+                              action: "transfer_resolve",
+                              transfer_id: r.id,
+                              accept: true,
+                              admission_age_confirmed: ages[r.id],
+                            },
+                            "Entradas aceptadas",
+                          )
+                        }
+                      >
+                        Aceptar entradas
+                      </button>
+                      <button
+                        className="btn"
+                        disabled={busy}
+                        onClick={() =>
+                          run(
+                            {
+                              action: "transfer_resolve",
+                              transfer_id: r.id,
+                              accept: false,
+                            },
+                            "Entradas devueltas al remitente",
+                          )
+                        }
+                      >
+                        Rechazar
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </article>
+          ))}
+        </section>
+      )}
       <section className="panel" style={{ marginTop: 22 }}>
         <h2>Tus entradas individuales</h2>
         <p>
@@ -222,7 +250,10 @@ export function TicketWallet() {
                   <Badge status={t.status} />
                 )}
               </span>
-              <Link className="btn small" href={`/tickets/${t.order_id}`}>
+              <Link
+                className="btn small"
+                href={`/tickets/${t.order_id}?mine=1`}
+              >
                 Ver entradas
               </Link>
             </div>
